@@ -354,15 +354,6 @@ def proper_docstring_function() -> int:
 
 
 class ProperDocstringClass:
-    """A class with proper docstring formatting.
-    
-    This class demonstrates proper docstring conventions
-    for class-level documentation.
-    
-    Attributes:
-        value (int): A sample attribute.
-    """
-    
     def __init__(self, value: int = 0):
         """Initialize the class with a value.
         
