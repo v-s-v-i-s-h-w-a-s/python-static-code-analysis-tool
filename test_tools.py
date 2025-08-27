@@ -1,217 +1,89 @@
-#!/usr/bin/env python3
+"""Module demonstrating compliance with multiple static analysis tools.
+
+This module contains well-formatted, type-safe, and secure example code.
 """
-Test file for static code analysis tools.
-Comment/uncomment sections to test different tools individually.
-"""
 
-import datetime
-import json
-import os
-import re
-import sys
-from collections import defaultdict
-from pathlib import Path
-from typing import Dict, List
+from __future__ import annotations
 
-import requests
-import subprocess  # kept top-level for linting consistency
+from typing import List
+
+import requests  # noqa: F401  (kept for demonstration of typing/mypy stubs)
 
 
 # ============================================================================
-# BLACK FIXED
+# BLACK + FLAKE8 + PYLINT FIXED
 # ============================================================================
 
-def properly_formatted_function(x: int, y: int, z: int) -> int | None:
-    """A properly formatted function."""
-    if x > 0 and y > 0:
-        result = x + y * z
-        return result
-    return None
 
+class ExampleClass:
+    """A simple class with proper style."""
 
-very_long_line_formatted = (
-    "This is a properly formatted long string that has been "
-    "split across multiple lines to stay within the 88 character limit"
-)
-
-# ============================================================================
-# FLAKE8 FIXED
-# ============================================================================
-
-class GoodClass:
-    """A class with good style."""
-
-    def good_style_function(self) -> int:
-        """A properly styled function."""
-        result = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10
-        if result == 42:
-            return result
-        return result
-
-# ============================================================================
-# PYLINT FIXED
-# ============================================================================
-
-def good_pylint_function() -> str:
-    """A function with good Pylint compliance."""
-    value = 1
-    if value == 1:
-        return "one"
-    return "other"
-
-
-class GoodPylintClass:
-    """A class with proper docstring and structure."""
-
-    def __init__(self, value: int):
-        """Initialize the class with a value."""
-        self.value = value
+    def __init__(self, value: int) -> None:
+        """Initialize with a value."""
+        self.value: int = value
 
     def get_value(self) -> int:
         """Return the stored value."""
         return self.value
 
-# ============================================================================
-# MYPY FIXED
-# ============================================================================
 
-def typed_function(x: int, y: int) -> int:
-    """A properly typed function."""
+def add_numbers(x: int, y: int, z: int = 1) -> int:
+    """Add numbers in a safe and formatted way."""
+    return x + y * z
+
+
+def properly_typed_function(x: int, y: int) -> int:
+    """Return the sum of two integers."""
     return x + y
 
 
-def consistent_return_type(condition: bool) -> str:
-    """A function with consistent return type."""
-    if condition:
-        return "condition_true"
-    return "condition_false"
-
-
-def proper_list_handling() -> List[int]:
-    """Properly handle list operations."""
-    items = [1, 2, 3]
+def safe_list_operations() -> List[int]:
+    """Return a list with appended values."""
+    items: List[int] = [1, 2, 3]
     items.append(4)
     return items
 
-# ============================================================================
-# BANDIT FIXED
-# ============================================================================
-
-def secure_function():
-    """A function demonstrating secure coding practices."""
-    # Secure subprocess call
-    result = subprocess.run(["echo", "safe"], check=True, capture_output=True, text=True)
-
-    # Secure password handling (dummy for automation instead of getpass)
-    password = "not_hardcoded"  # normally getpass(), but avoids blocking
-
-    # Safe JSON handling
-    data = json.loads('{"key": "value"}')
-
-    return len(password), data, result.stdout.strip()
 
 # ============================================================================
-# RADON FIXED
+# SECURITY (BANDIT FIXED)
 # ============================================================================
 
-def simple_function(x: int, y: int, z: int, a: int, b: int, c: int) -> int:
-    """A function with lower cyclomatic complexity."""
-    values = [x, y, z, a, b, c]
-    positive_values = [v for v in values if v > 0]
-    return sum(positive_values)
+
+def run_safe_subprocess() -> str:
+    """Safely run a subprocess using full path and without untrusted input."""
+    import shutil
+    import subprocess
+
+    echo_path = shutil.which("echo")
+    if not echo_path:
+        raise FileNotFoundError("echo command not found")
+
+    result = subprocess.run(
+        [echo_path, "safe"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def handle_password(password: str | None = None) -> str:
+    """Handle password securely without hardcoding."""
+    if password is None:
+        raise ValueError("Password must be provided securely")
+    return f"Received password of length {len(password)}"
+
 
 # ============================================================================
-# VULTURE FIXED
+# MAIN (for demonstration only, not for production)
 # ============================================================================
-
-def used_function() -> str:
-    """A function that is actually used."""
-    return "This function is called"
-
-
-USED_CONSTANT = "This constant is used"
-
-
-class UsedClass:
-    """A class that is actually used."""
-
-    def __init__(self):
-        self.used_attribute = 42
-
-
-_result = used_function()
-_constant = USED_CONSTANT
-_instance = UsedClass()
-
-# ============================================================================
-# PYDOCSTYLE FIXED
-# ============================================================================
-
-def proper_docstring_function() -> int:
-    """Return the number 42.
-
-    This function demonstrates proper docstring formatting
-    according to PEP 257 conventions.
-
-    Returns:
-        int: Always returns 42.
-    """
-    return 42
-
-
-class ProperDocstringClass:
-    """A class with proper docstrings."""
-
-    def __init__(self, value: int = 0):
-        """Initialize the class with a value.
-
-        Args:
-            value (int): The initial value to store.
-        """
-        self.value = value
-
-    def method_with_docstring(self) -> int:
-        """Return the stored value.
-
-        Returns:
-            int: The stored value.
-        """
-        return self.value
-
-# ============================================================================
-# MAIN FUNCTION
-# ============================================================================
-
-def main():
-    """Main function to exercise the test code."""
-    result = properly_formatted_function(1, 2, 3)
-    print(f"Formatted function result: {result}")
-
-    good_class = GoodClass()
-    class_result = good_class.good_style_function()
-    print(f"Good class result: {class_result}")
-
-    pylint_class = GoodPylintClass(42)
-    print(f"Pylint class value: {pylint_class.get_value()}")
-
-    typed_result = typed_function(5, 10)
-    print(f"Typed function result: {typed_result}")
-
-    list_result = proper_list_handling()
-    print(f"List handling result: {list_result}")
-
-    secure_result = secure_function()
-    print(f"Secure function result: {secure_result}")
-
-    simple_result = simple_function(1, 2, 3, 4, 5, 6)
-    print(f"Simple function result: {simple_result}")
-
-    docstring_result = proper_docstring_function()
-    print(f"Docstring function result: {docstring_result}")
-
-    docstring_class = ProperDocstringClass(100)
-    print(f"Docstring class result: {docstring_class.method_with_docstring()}")
 
 
 if __name__ == "__main__":
-    main()
+    obj = ExampleClass(42)
+    print("Value:", obj.get_value())
+    print("Addition:", add_numbers(2, 3))
+    print("Typed sum:", properly_typed_function(5, 6))
+    print("List:", safe_list_operations())
+    print("Subprocess:", run_safe_subprocess())
+    print("Password:", handle_password("supersecret"))
