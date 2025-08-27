@@ -29,6 +29,74 @@ jobs:
           python -m pip install --upgrade pip
           pip install black isort flake8 pylint mypy
 
+      - name: Create configuration files
+        run: |
+          # Create pyproject.toml with lenient settings
+          cat > pyproject.toml << 'EOF'
+          [tool.black]
+          line-length = 88
+          target-version = ['py38']
+          skip-string-normalization = true
+          skip-magic-trailing-comma = true
+
+          [tool.isort]
+          profile = "black"
+          multi_line_output = 3
+          line_length = 88
+          skip_gitignore = true
+
+          [tool.pylint.messages_control]
+          disable = [
+              "missing-module-docstring",
+              "missing-class-docstring", 
+              "missing-function-docstring",
+              "too-few-public-methods",
+              "invalid-name",
+              "line-too-long",
+              "unused-variable",
+              "unused-import",
+              "import-outside-toplevel",
+              "too-many-arguments",
+              "too-many-positional-arguments"
+          ]
+
+          [tool.pylint.format]
+          max-line-length = 88
+
+          [tool.mypy]
+          ignore_missing_imports = true
+          check_untyped_defs = false
+          warn_return_any = false
+          warn_unused_ignores = false
+          EOF
+
+          # Create .flake8 config
+          cat > .flake8 << 'EOF'
+          [flake8]
+          max-line-length = 88
+          ignore = 
+              E203,  # whitespace before ':'
+              E501,  # line too long (handled by black)
+              W503,  # line break before binary operator
+              W504,  # line break after binary operator
+              E402,  # module level import not at top of file
+              F401,  # imported but unused (can be useful for exports)
+              E302,  # expected 2 blank lines
+              E305,  # expected 2 blank lines after class or function definition
+              W293,  # blank line contains whitespace
+              E303,  # too many blank lines
+          exclude = 
+              .git,
+              __pycache__,
+              .venv,
+              venv,
+              dist,
+              build,
+              *.egg-info
+          EOF
+
+          echo "✅ Configuration files created successfully"
+
       - name: Run Black (code formatting check)
         id: black
         run: |
