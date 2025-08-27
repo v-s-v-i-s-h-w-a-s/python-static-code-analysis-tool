@@ -2,9 +2,9 @@ name: Python Static Code Analysis
 
 on:
   push:
-    branches: ['*']
+    branches: [main, develop]
   pull_request:
-    branches: ['*']
+    branches: [main, develop]
 
 jobs:
   static-analysis:
@@ -34,7 +34,9 @@ jobs:
         run: |
           echo "## 🖤 Black Code Formatting Check" > analysis-report.md
           echo "" >> analysis-report.md
-          if black --check . 2>&1 | tee black-output.txt; then
+          black --check . > black-output.txt 2>&1
+          BLACK_EXIT_CODE=$?
+          if [ $BLACK_EXIT_CODE -eq 0 ]; then
             echo "✅ **Black**: All files are properly formatted" >> analysis-report.md
             echo "black_status=✅ PASSED" >> $GITHUB_OUTPUT
           else
@@ -53,7 +55,9 @@ jobs:
         run: |
           echo "## 📦 isort Import Sorting Check" >> analysis-report.md
           echo "" >> analysis-report.md
-          if isort --check-only . 2>&1 | tee isort-output.txt; then
+          isort --check-only . > isort-output.txt 2>&1
+          ISORT_EXIT_CODE=$?
+          if [ $ISORT_EXIT_CODE -eq 0 ]; then
             echo "✅ **isort**: All imports are properly sorted" >> analysis-report.md
             echo "isort_status=✅ PASSED" >> $GITHUB_OUTPUT
           else
@@ -72,7 +76,9 @@ jobs:
         run: |
           echo "## 🔍 flake8 Style and Syntax Check" >> analysis-report.md
           echo "" >> analysis-report.md
-          if flake8 . 2>&1 | tee flake8-output.txt; then
+          flake8 . > flake8-output.txt 2>&1
+          FLAKE8_EXIT_CODE=$?
+          if [ $FLAKE8_EXIT_CODE -eq 0 ]; then
             echo "✅ **flake8**: No style or syntax issues found" >> analysis-report.md
             echo "flake8_status=✅ PASSED" >> $GITHUB_OUTPUT
           else
@@ -94,7 +100,9 @@ jobs:
           # Get Python files and run pylint
           python_files=$(git ls-files '*.py')
           if [ -n "$python_files" ]; then
-            if pylint $python_files 2>&1 | tee pylint-output.txt; then
+            pylint $python_files > pylint-output.txt 2>&1
+            PYLINT_EXIT_CODE=$?
+            if [ $PYLINT_EXIT_CODE -eq 0 ]; then
               echo "✅ **pylint**: No issues found" >> analysis-report.md
               echo "pylint_status=✅ PASSED" >> $GITHUB_OUTPUT
             else
@@ -117,7 +125,9 @@ jobs:
         run: |
           echo "## 🎯 mypy Type Checking" >> analysis-report.md
           echo "" >> analysis-report.md
-          if mypy . 2>&1 | tee mypy-output.txt; then
+          mypy . > mypy-output.txt 2>&1
+          MYPY_EXIT_CODE=$?
+          if [ $MYPY_EXIT_CODE -eq 0 ]; then
             echo "✅ **mypy**: No type checking issues found" >> analysis-report.md
             echo "mypy_status=✅ PASSED" >> $GITHUB_OUTPUT
           else
