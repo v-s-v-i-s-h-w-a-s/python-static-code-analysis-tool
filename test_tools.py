@@ -89,7 +89,7 @@ def secure_function() -> tuple:
     """A function demonstrating secure coding practices."""
     # Simulate secure operations without actually running subprocess
     # to avoid platform-specific issues in testing
-    
+
     # Secure password handling (simulated)
     password_length = 12  # Simulated secure password length
 
@@ -97,7 +97,6 @@ def secure_function() -> tuple:
     data = json.loads('{"key": "value"}')
 
     return password_length, data
-
 
 
 def simple_function(*args: int) -> int:
@@ -124,6 +123,10 @@ class UsedClass:
     def get_attribute(self) -> int:
         """Get the used attribute."""
         return self.used_attribute
+
+    def set_attribute(self, value: int) -> None:
+        """Set the used attribute."""
+        self.used_attribute = value
 
 
 # Usage to prevent Vulture from flagging as dead code
@@ -215,6 +218,8 @@ def main() -> None:
     # Use the used class to prevent dead code warnings
     used_class_instance = UsedClass()
     print(f"Used class attribute: {used_class_instance.get_attribute()}")
+    used_class_instance.set_attribute(84)
+    print(f"Updated used class attribute: {used_class_instance.get_attribute()}")
 
 
 if __name__ == "__main__":
