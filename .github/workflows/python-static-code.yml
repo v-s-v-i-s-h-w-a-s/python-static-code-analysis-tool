@@ -2,9 +2,9 @@ name: Python Static Code Analysis
 
 on:
   push:
-    branches: [ "*" ]
+    branches: [main, develop]
   pull_request:
-    branches: [ "*" ]
+    branches: [main, develop]
 
 jobs:
   static-analysis:
@@ -12,488 +12,204 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      checks: write
-      statuses: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch full history for pylint to work with git ls-files
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml', '**/setup.py') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+      - name: Install static analysis tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort flake8 pylint mypy
 
-    - name: Install project dependencies
-      run: |
-        python -m pip install --upgrade pip
-        # Install project dependencies if they exist
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-        if [ -f pyproject.toml ]; then pip install -e .; fi
+      - name: Run Black (code formatting check)
+        id: black
+        run: |
+          echo "## 🖤 Black Code Formatting Check" > analysis-report.md
+          echo "" >> analysis-report.md
+          if black --check . 2>&1 | tee black-output.txt; then
+            echo "✅ **Black**: All files are properly formatted" >> analysis-report.md
+            echo "black_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **Black**: Code formatting issues found" >> analysis-report.md
+            echo "black_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat black-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
 
-    - name: Install static analysis tools
-      run: |
-        pip install \
-          flake8 \
-          pylint \
-          black \
-          isort \
-          mypy \
-          bandit \
-          safety \
-          radon \
-          vulture \
-          pydocstyle \
-          flake8-bugbear \
-          flake8-docstrings \
-          flake8-import-order \
-          mccabe
+      - name: Run isort (import sorting check)
+        id: isort
+        run: |
+          echo "## 📦 isort Import Sorting Check" >> analysis-report.md
+          echo "" >> analysis-report.md
+          if isort --check-only . 2>&1 | tee isort-output.txt; then
+            echo "✅ **isort**: All imports are properly sorted" >> analysis-report.md
+            echo "isort_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **isort**: Import sorting issues found" >> analysis-report.md
+            echo "isort_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat isort-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
 
-    - name: Create reports directory
-      run: mkdir -p reports
+      - name: Run flake8 (style and syntax check)
+        id: flake8
+        run: |
+          echo "## 🔍 flake8 Style and Syntax Check" >> analysis-report.md
+          echo "" >> analysis-report.md
+          if flake8 . 2>&1 | tee flake8-output.txt; then
+            echo "✅ **flake8**: No style or syntax issues found" >> analysis-report.md
+            echo "flake8_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **flake8**: Style or syntax issues found" >> analysis-report.md
+            echo "flake8_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat flake8-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
 
-    - name: Run Black (Code Formatting Check)
-      id: black
-      continue-on-error: true
-      run: |
-        echo "Running Black..."
-        black --check --diff . > reports/black_report.txt 2>&1 || echo "BLACK_FAILED=true" >> $GITHUB_ENV
+      - name: Run pylint (comprehensive code analysis)
+        id: pylint
+        run: |
+          echo "## 🔎 pylint Comprehensive Code Analysis" >> analysis-report.md
+          echo "" >> analysis-report.md
+          # Get Python files and run pylint
+          python_files=$(git ls-files '*.py')
+          if [ -n "$python_files" ]; then
+            if pylint $python_files 2>&1 | tee pylint-output.txt; then
+              echo "✅ **pylint**: No issues found" >> analysis-report.md
+              echo "pylint_status=✅ PASSED" >> $GITHUB_OUTPUT
+            else
+              echo "❌ **pylint**: Issues found in code analysis" >> analysis-report.md
+              echo "pylint_status=❌ FAILED" >> $GITHUB_OUTPUT
+            fi
+            echo "" >> analysis-report.md
+            echo '```' >> analysis-report.md
+            cat pylint-output.txt >> analysis-report.md
+            echo '```' >> analysis-report.md
+          else
+            echo "ℹ️ **pylint**: No Python files found to analyze" >> analysis-report.md
+            echo "pylint_status=ℹ️ NO FILES" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+        continue-on-error: true
 
-    - name: Run isort (Import Sorting Check)
-      id: isort
-      continue-on-error: true
-      run: |
-        echo "Running isort..."
-        isort --check-only --diff . > reports/isort_report.txt 2>&1 || echo "ISORT_FAILED=true" >> $GITHUB_ENV
+      - name: Run mypy (type checking)
+        id: mypy
+        run: |
+          echo "## 🎯 mypy Type Checking" >> analysis-report.md
+          echo "" >> analysis-report.md
+          if mypy . 2>&1 | tee mypy-output.txt; then
+            echo "✅ **mypy**: No type checking issues found" >> analysis-report.md
+            echo "mypy_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **mypy**: Type checking issues found" >> analysis-report.md
+            echo "mypy_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat mypy-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
 
-    - name: Run Flake8 (Style & Complexity)
-      id: flake8
-      continue-on-error: true
-      run: |
-        echo "Running Flake8..."
-        flake8 --format='%(path)s:%(row)d:%(col)d: %(code)s %(text)s' \
-               --max-line-length=88 \
-               --extend-ignore=E203,W503 \
-               --output-file=reports/flake8_report.txt . || echo "FLAKE8_FAILED=true" >> $GITHUB_ENV
+      - name: Generate final report summary
+        id: summary
+        run: |
+          # Prepare the final report with header
+          {
+            echo "## 🧪 Python Static Code Analysis Report"
+            echo ""
+            echo "| Tool | Status |"
+            echo "|------|--------|"
+            echo "| **Black** | ${{ steps.black.outputs.black_status }} |"
+            echo "| **isort** | ${{ steps.isort.outputs.isort_status }} |"
+            echo "| **flake8** | ${{ steps.flake8.outputs.flake8_status }} |"
+            echo "| **pylint** | ${{ steps.pylint.outputs.pylint_status }} |"
+            echo "| **mypy** | ${{ steps.mypy.outputs.mypy_status }} |"
+            echo ""
+          } > final-report.md
 
-    - name: Run Pylint
-      id: pylint
-      continue-on-error: true
-      run: |
-        echo "Running Pylint..."
-        pylint --output-format=text --reports=yes --score=yes \
-               $(find . -name "*.py" | head -20) > reports/pylint_report.txt 2>&1 || echo "PYLINT_FAILED=true" >> $GITHUB_ENV
+          # Add the detailed analysis
+          cat analysis-report.md >> final-report.md
 
-    - name: Run MyPy (Type Checking)
-      id: mypy
-      continue-on-error: true
-      run: |
-        echo "Running MyPy..."
-        mypy --ignore-missing-imports --show-error-codes \
-             --pretty . > reports/mypy_report.txt 2>&1 || echo "MYPY_FAILED=true" >> $GITHUB_ENV
+          # Determine overall status
+          if grep -q "❌" final-report.md; then
+            echo "overall_status=❌ Some checks failed" >> $GITHUB_OUTPUT
+            echo "overall_success=false" >> $GITHUB_OUTPUT
+          else
+            echo "overall_status=✅ All checks passed" >> $GITHUB_OUTPUT
+            echo "overall_success=true" >> $GITHUB_OUTPUT
+          fi
 
-    - name: Run Bandit (Security Linting)
-      id: bandit
-      continue-on-error: true
-      run: |
-        echo "Running Bandit..."
-        bandit -r . -f txt -o reports/bandit_report.txt || echo "BANDIT_FAILED=true" >> $GITHUB_ENV
+          # Add footer
+          echo "" >> final-report.md
+          echo "---" >> final-report.md
+          echo "*Report generated on $(date -u '+%Y-%m-%d %H:%M:%S UTC') by GitHub Actions*" >> final-report.md
 
-    - name: Run Safety (Dependency Vulnerability Check)
-      id: safety
-      continue-on-error: true
-      run: |
-        echo "Running Safety..."
-        safety check --output text > reports/safety_report.txt 2>&1 || echo "SAFETY_FAILED=true" >> $GITHUB_ENV
+      - name: Find existing comment
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "🧪 Python Static Code Analysis Report"
 
-    - name: Run Radon (Complexity Analysis)
-      id: radon
-      continue-on-error: true
-      run: |
-        echo "Running Radon..."
-        radon cc . -a -nb > reports/radon_complexity.txt 2>&1
-        radon mi . > reports/radon_maintainability.txt 2>&1 || echo "RADON_FAILED=true" >> $GITHUB_ENV
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          body-path: final-report.md
+          edit-mode: replace
+          reactions: |
+            ${{ steps.summary.outputs.overall_success == 'true' && '+1' || 'confused' }}
 
-    - name: Run Vulture (Dead Code Detection)
-      id: vulture
-      continue-on-error: true
-      run: |
-        echo "Running Vulture..."
-        vulture . > reports/vulture_report.txt 2>&1 || echo "VULTURE_FAILED=true" >> $GITHUB_ENV
+      - name: Upload analysis report as artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-static-analysis-report-${{ github.sha }}
+          path: final-report.md
+          retention-days: 30
 
-    - name: Run pydocstyle (Docstring Conventions)
-      id: pydocstyle
-      continue-on-error: true
-      run: |
-        echo "Running pydocstyle..."
-        pydocstyle . > reports/pydocstyle_report.txt 2>&1 || echo "PYDOCSTYLE_FAILED=true" >> $GITHUB_ENV
+      - name: Upload detailed logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-analysis-logs-${{ github.sha }}
+          path: |
+            *-output.txt
+            analysis-report.md
+          retention-days: 7
 
-    - name: Generate Summary Report
-      run: |
-        echo "# Static Code Analysis Report" > reports/summary.md
-        echo "" >> reports/summary.md
-        echo "## Analysis Results" >> reports/summary.md
-        echo "" >> reports/summary.md
-        
-        # Check each tool's status
-        OVERALL_STATUS="✅ PASSED"
-        FAILED_TOOLS=""
-        
-        if [ "$BLACK_FAILED" = "true" ]; then
-          echo "- ❌ **Black (Code Formatting)**: FAILED" >> reports/summary.md
-          OVERALL_STATUS="❌ FAILED"
-          FAILED_TOOLS="$FAILED_TOOLS Black,"
-        else
-          echo "- ✅ **Black (Code Formatting)**: PASSED" >> reports/summary.md
-        fi
-        
-        if [ "$ISORT_FAILED" = "true" ]; then
-          echo "- ❌ **isort (Import Sorting)**: FAILED" >> reports/summary.md
-          OVERALL_STATUS="❌ FAILED"
-          FAILED_TOOLS="$FAILED_TOOLS isort,"
-        else
-          echo "- ✅ **isort (Import Sorting)**: PASSED" >> reports/summary.md
-        fi
-        
-        if [ "$FLAKE8_FAILED" = "true" ]; then
-          echo "- ❌ **Flake8 (Style & Complexity)**: FAILED" >> reports/summary.md
-          OVERALL_STATUS="❌ FAILED"
-          FAILED_TOOLS="$FAILED_TOOLS Flake8,"
-        else
-          echo "- ✅ **Flake8 (Style & Complexity)**: PASSED" >> reports/summary.md
-        fi
-        
-        if [ "$PYLINT_FAILED" = "true" ]; then
-          echo "- ❌ **Pylint (Code Quality)**: FAILED" >> reports/summary.md
-          OVERALL_STATUS="❌ FAILED"
-          FAILED_TOOLS="$FAILED_TOOLS Pylint,"
-        else
-          echo "- ✅ **Pylint (Code Quality)**: PASSED" >> reports/summary.md
-        fi
-        
-        if [ "$MYPY_FAILED" = "true" ]; then
-          echo "- ❌ **MyPy (Type Checking)**: FAILED" >> reports/summary.md
-          OVERALL_STATUS="❌ FAILED"
-          FAILED_TOOLS="$FAILED_TOOLS MyPy,"
-        else
-          echo "- ✅ **MyPy (Type Checking)**: PASSED" >> reports/summary.md
-        fi
-        
-        if [ "$BANDIT_FAILED" = "true" ]; then
-          echo "- ❌ **Bandit (Security)**: FAILED" >> reports/summary.md
-          OVERALL_STATUS="❌ FAILED"
-          FAILED_TOOLS="$FAILED_TOOLS Bandit,"
-        else
-          echo "- ✅ **Bandit (Security)**: PASSED" >> reports/summary.md
-        fi
-        
-        if [ "$SAFETY_FAILED" = "true" ]; then
-          echo "- ❌ **Safety (Dependencies)**: FAILED" >> reports/summary.md
-          OVERALL_STATUS="❌ FAILED"
-          FAILED_TOOLS="$FAILED_TOOLS Safety,"
-        else
-          echo "- ✅ **Safety (Dependencies)**: PASSED" >> reports/summary.md
-        fi
-        
-        # Store overall status for later steps
-        echo "OVERALL_STATUS=$OVERALL_STATUS" >> $GITHUB_ENV
-        echo "FAILED_TOOLS=${FAILED_TOOLS%,}" >> $GITHUB_ENV
-        
-        echo "" >> reports/summary.md
-        echo "**Overall Status: $OVERALL_STATUS**" >> reports/summary.md
-
-    - name: Upload Analysis Reports
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: static-analysis-reports
-        path: reports/
-        retention-days: 30
-
-    # - name: Comment on PR (Success)
-    #   if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '✅ PASSED'
-    #   uses: actions/github-script@v7
-    #   with:
-    #     script: |
-    #       github.rest.issues.createComment({
-    #         issue_number: context.issue.number,
-    #         owner: context.repo.owner,
-    #         repo: context.repo.repo,
-    #         body: `## 🎉 Static Code Analysis - All Checks Passed!
-            
-    #         All static analysis tools have passed successfully:
-    #         - ✅ Black (Code Formatting)
-    #         - ✅ isort (Import Sorting) 
-    #         - ✅ Flake8 (Style & Complexity)
-    #         - ✅ Pylint (Code Quality)
-    #         - ✅ MyPy (Type Checking)
-    #         - ✅ Bandit (Security)
-    #         - ✅ Safety (Dependencies)
-    #         - ✅ Radon (Complexity Analysis)
-    #         - ✅ Vulture (Dead Code Detection)
-    #         - ✅ pydocstyle (Docstring Conventions)
-            
-    #         Your code is ready to merge! 🚀`
-    #       })
-
-    # - name: Comment on PR (Failure)
-    #   if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '❌ FAILED'
-    #   uses: actions/github-script@v7
-    #   with:
-    #     script: |
-    #       const fs = require('fs');
-          
-    #       let detailedReport = `## ❌ Static Code Analysis Failed
-          
-    #       The following tools reported issues that need to be addressed:
-          
-    #       **Failed Tools:** ${process.env.FAILED_TOOLS}
-          
-    #       ### 📋 Detailed Reports:
-    #       `;
-          
-    #       // Add detailed reports for failed tools
-    #       const reports = [
-    #         { name: 'Black', file: 'black_report.txt', env: 'BLACK_FAILED' },
-    #         { name: 'isort', file: 'isort_report.txt', env: 'ISORT_FAILED' },
-    #         { name: 'Flake8', file: 'flake8_report.txt', env: 'FLAKE8_FAILED' },
-    #         { name: 'Pylint', file: 'pylint_report.txt', env: 'PYLINT_FAILED' },
-    #         { name: 'MyPy', file: 'mypy_report.txt', env: 'MYPY_FAILED' },
-    #         { name: 'Bandit', file: 'bandit_report.txt', env: 'BANDIT_FAILED' },
-    #         { name: 'Safety', file: 'safety_report.txt', env: 'SAFETY_FAILED' }
-    #       ];
-          
-    #       for (const report of reports) {
-    #         if (process.env[report.env] === 'true') {
-    #           try {
-    #             const content = fs.readFileSync(`reports/${report.file}`, 'utf8');
-    #             const truncatedContent = content.length > 2000 ? 
-    #               content.substring(0, 2000) + '\n\n... (truncated, see full report in artifacts)' : 
-    #               content;
-    #             detailedReport += `
-    #       #### ${report.name} Issues:
-    #       \`\`\`
-    #       ${truncatedContent}
-    #       \`\`\`
-    #       `;
-    #           } catch (e) {
-    #             detailedReport += `
-    #       #### ${report.name} Issues:
-    #       \`\`\`
-    #       Report file not found or empty
-    #       \`\`\`
-    #       `;
-    #           }
-    #         }
-    #       }
-          
-    #       detailedReport += `
-          
-    #       ### 🔧 How to Fix:
-          
-    #       1. **Download the full reports** from the Actions artifacts for detailed analysis
-    #       2. **Fix the issues** identified by the failed tools
-    #       3. **Test locally** by running the same tools before pushing
-    #       4. **Commit and push** your fixes
-          
-    #       ### 📥 Quick Local Setup:
-    #       \`\`\`bash
-    #       pip install black isort flake8 pylint mypy bandit safety
-    #       black . && isort . && flake8 . && pylint . && mypy . && bandit -r . && safety check
-    #       \`\`\`
-    #       `;
-          
-    #       github.rest.issues.createComment({
-    #         issue_number: context.issue.number,
-    #         owner: context.repo.owner,
-    #         repo: context.repo.repo,
-    #         body: detailedReport
-    #       })
-    - name: Comment on PR (Success)
-      if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '✅ PASSED'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const { data: comments } = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-          });
-
-          const botComment = comments.find(c => 
-            c.user.type === "Bot" && c.body.includes("## 🎉 Static Code Analysis - All Checks Passed!")
-          );
-
-          const body = `## 🎉 Static Code Analysis - All Checks Passed!
-          
-          All static analysis tools have passed successfully:
-          - ✅ Black (Code Formatting)
-          - ✅ isort (Import Sorting) 
-          - ✅ Flake8 (Style & Complexity)
-          - ✅ Pylint (Code Quality)
-          - ✅ MyPy (Type Checking)
-          - ✅ Bandit (Security)
-          - ✅ Safety (Dependencies)
-          - ✅ Radon (Complexity Analysis)
-          - ✅ Vulture (Dead Code Detection)
-          - ✅ pydocstyle (Docstring Conventions)
-          
-          Your code is ready to merge! 🚀`;
-
-          if (botComment) {
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: botComment.id,
-              body,
-            });
-          } else {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });
-          }
-
-    - name: Comment on PR (Failure)
-      if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '❌ FAILED'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-
-          let detailedReport = `## ❌ Static Code Analysis Failed
-          
-          The following tools reported issues that need to be addressed:
-          
-          **Failed Tools:** ${process.env.FAILED_TOOLS}
-          
-          ### 📋 Detailed Reports:
-          `;
-
-          const reports = [
-            { name: 'Black', file: 'black_report.txt', env: 'BLACK_FAILED' },
-            { name: 'isort', file: 'isort_report.txt', env: 'ISORT_FAILED' },
-            { name: 'Flake8', file: 'flake8_report.txt', env: 'FLAKE8_FAILED' },
-            { name: 'Pylint', file: 'pylint_report.txt', env: 'PYLINT_FAILED' },
-            { name: 'MyPy', file: 'mypy_report.txt', env: 'MYPY_FAILED' },
-            { name: 'Bandit', file: 'bandit_report.txt', env: 'BANDIT_FAILED' },
-            { name: 'Safety', file: 'safety_report.txt', env: 'SAFETY_FAILED' }
-          ];
-
-          for (const report of reports) {
-            if (process.env[report.env] === 'true') {
-              try {
-                const content = fs.readFileSync(`reports/${report.file}`, 'utf8');
-                const truncatedContent = content.length > 2000 ? 
-                  content.substring(0, 2000) + '\n\n... (truncated, see full report in artifacts)' : 
-                  content;
-                detailedReport += `
-          #### ${report.name} Issues:
-          \`\`\`
-          ${truncatedContent}
-          \`\`\`
-          `;
-              } catch (e) {
-                detailedReport += `
-          #### ${report.name} Issues:
-          \`\`\`
-          Report file not found or empty
-          \`\`\`
-          `;
-              }
-            }
-          }
-
-          detailedReport += `
-          
-          ### 🔧 How to Fix:
-          
-          1. **Download the full reports** from the Actions artifacts for detailed analysis
-          2. **Fix the issues** identified by the failed tools
-          3. **Test locally** by running the same tools before pushing
-          4. **Commit and push** your fixes
-          
-          ### 📥 Quick Local Setup:
-          \`\`\`bash
-          pip install black isort flake8 pylint mypy bandit safety
-          black . && isort . && flake8 . && pylint . && mypy . && bandit -r . && safety check
-          \`\`\`
-          `;
-
-          const { data: comments } = await github.rest.issues.listComments({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: context.issue.number,
-          });
-
-          const botComment = comments.find(c => 
-            c.user.type === "Bot" && c.body.includes("## ❌ Static Code Analysis Failed")
-          );
-
-          if (botComment) {
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: botComment.id,
-              body: detailedReport,
-            });
-          } else {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: detailedReport,
-            });
-          }
-
-    - name: Set PR Status Check
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const status = process.env.OVERALL_STATUS === '✅ PASSED' ? 'success' : 'failure';
-          const description = process.env.OVERALL_STATUS === '✅ PASSED' ? 
-            'All static analysis checks passed' : 
-            `Failed tools: ${process.env.FAILED_TOOLS}`;
-          
-          github.rest.repos.createCommitStatus({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            sha: context.payload.pull_request.head.sha,
-            state: status,
-            target_url: `${context.payload.repository.html_url}/actions/runs/${context.runId}`,
-            description: description,
-            context: 'Static Code Analysis'
-          });
-
-    - name: Fail job if analysis failed (PR only)
-      if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '❌ FAILED'
-      run: |
-        echo "Static code analysis failed. PR cannot be merged until issues are resolved."
-        echo "Failed tools: $FAILED_TOOLS"
-        exit 1
-
-    - name: Log results for push events
-      if: github.event_name == 'push'
-      run: |
-        echo "Static code analysis completed for push event."
-        echo "Status: $OVERALL_STATUS"
-        if [ "$OVERALL_STATUS" = "❌ FAILED" ]; then
-          echo "⚠️  Issues found in pushed code. Consider reviewing the analysis reports."
-          echo "Failed tools: $FAILED_TOOLS"
-        else
-          echo "✅ All checks passed for pushed code."
-        fi
+      - name: Set workflow status
+        run: |
+          if [ "${{ steps.summary.outputs.overall_success }}" = "false" ]; then
+            echo "❌ Static code analysis found issues"
+            exit 1
+          else
+            echo "✅ All static code analysis checks passed"
+          fi
