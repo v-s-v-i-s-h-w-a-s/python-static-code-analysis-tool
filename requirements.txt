@@ -6,7 +6,7 @@ pylint==3.2.7
 
 # Static typing
 mypy==1.11.2
-types-requests==2.32.0.20240822
+types-requests==2.32.0.20240907
 
 # Security tools
 bandit==1.7.9
