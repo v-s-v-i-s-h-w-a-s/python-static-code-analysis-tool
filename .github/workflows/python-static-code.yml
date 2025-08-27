@@ -34,8 +34,10 @@ jobs:
         run: |
           echo "## 🖤 Black Code Formatting Check" > analysis-report.md
           echo "" >> analysis-report.md
+          set +e  # Don't exit on error
           black --check . > black-output.txt 2>&1
           BLACK_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
           if [ $BLACK_EXIT_CODE -eq 0 ]; then
             echo "✅ **Black**: All files are properly formatted" >> analysis-report.md
             echo "black_status=✅ PASSED" >> $GITHUB_OUTPUT
@@ -55,8 +57,10 @@ jobs:
         run: |
           echo "## 📦 isort Import Sorting Check" >> analysis-report.md
           echo "" >> analysis-report.md
+          set +e  # Don't exit on error
           isort --check-only . > isort-output.txt 2>&1
           ISORT_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
           if [ $ISORT_EXIT_CODE -eq 0 ]; then
             echo "✅ **isort**: All imports are properly sorted" >> analysis-report.md
             echo "isort_status=✅ PASSED" >> $GITHUB_OUTPUT
@@ -76,8 +80,10 @@ jobs:
         run: |
           echo "## 🔍 flake8 Style and Syntax Check" >> analysis-report.md
           echo "" >> analysis-report.md
+          set +e  # Don't exit on error
           flake8 . > flake8-output.txt 2>&1
           FLAKE8_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
           if [ $FLAKE8_EXIT_CODE -eq 0 ]; then
             echo "✅ **flake8**: No style or syntax issues found" >> analysis-report.md
             echo "flake8_status=✅ PASSED" >> $GITHUB_OUTPUT
@@ -100,8 +106,10 @@ jobs:
           # Get Python files and run pylint
           python_files=$(git ls-files '*.py')
           if [ -n "$python_files" ]; then
+            set +e  # Don't exit on error
             pylint $python_files > pylint-output.txt 2>&1
             PYLINT_EXIT_CODE=$?
+            set -e  # Re-enable exit on error
             if [ $PYLINT_EXIT_CODE -eq 0 ]; then
               echo "✅ **pylint**: No issues found" >> analysis-report.md
               echo "pylint_status=✅ PASSED" >> $GITHUB_OUTPUT
@@ -125,8 +133,10 @@ jobs:
         run: |
           echo "## 🎯 mypy Type Checking" >> analysis-report.md
           echo "" >> analysis-report.md
+          set +e  # Don't exit on error
           mypy . > mypy-output.txt 2>&1
           MYPY_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
           if [ $MYPY_EXIT_CODE -eq 0 ]; then
             echo "✅ **mypy**: No type checking issues found" >> analysis-report.md
             echo "mypy_status=✅ PASSED" >> $GITHUB_OUTPUT
@@ -144,6 +154,14 @@ jobs:
       - name: Generate final report summary
         id: summary
         run: |
+          # Debug: Show what outputs we received
+          echo "Debug - Step outputs:"
+          echo "Black: ${{ steps.black.outputs.black_status }}"
+          echo "isort: ${{ steps.isort.outputs.isort_status }}"
+          echo "flake8: ${{ steps.flake8.outputs.flake8_status }}"
+          echo "pylint: ${{ steps.pylint.outputs.pylint_status }}"
+          echo "mypy: ${{ steps.mypy.outputs.mypy_status }}"
+          
           # Prepare the final report with header
           {
             echo "## 🧪 Python Static Code Analysis Report"
@@ -161,13 +179,34 @@ jobs:
           # Add the detailed analysis
           cat analysis-report.md >> final-report.md
 
-          # Determine overall status
-          if grep -q "❌" final-report.md; then
+          # Determine overall status by checking individual step outputs
+          FAILED_COUNT=0
+          if [[ "${{ steps.black.outputs.black_status }}" == *"FAILED"* ]]; then
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+          fi
+          if [[ "${{ steps.isort.outputs.isort_status }}" == *"FAILED"* ]]; then
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+          fi
+          if [[ "${{ steps.flake8.outputs.flake8_status }}" == *"FAILED"* ]]; then
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+          fi
+          if [[ "${{ steps.pylint.outputs.pylint_status }}" == *"FAILED"* ]]; then
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+          fi
+          if [[ "${{ steps.mypy.outputs.mypy_status }}" == *"FAILED"* ]]; then
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+          fi
+          
+          echo "Debug - Failed count: $FAILED_COUNT"
+          
+          if [ $FAILED_COUNT -gt 0 ]; then
             echo "overall_status=❌ Some checks failed" >> $GITHUB_OUTPUT
             echo "overall_success=false" >> $GITHUB_OUTPUT
+            echo "Debug - Setting overall_success=false"
           else
             echo "overall_status=✅ All checks passed" >> $GITHUB_OUTPUT
             echo "overall_success=true" >> $GITHUB_OUTPUT
+            echo "Debug - Setting overall_success=true"
           fi
 
           # Add footer
@@ -217,6 +256,7 @@ jobs:
 
       - name: Set workflow status
         run: |
+          echo "Debug - Final check: overall_success = '${{ steps.summary.outputs.overall_success }}'"
           if [ "${{ steps.summary.outputs.overall_success }}" = "false" ]; then
             echo "❌ Static code analysis found issues"
             exit 1
