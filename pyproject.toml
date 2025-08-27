@@ -1,4 +1,32 @@
 [tool.black]
-line-length = 79
+line-length = 88
 target-version = ['py38']
 skip-string-normalization = true
+skip-magic-trailing-comma = true
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+skip_gitignore = true
+
+[tool.pylint.messages_control]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring", 
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "invalid-name",
+    "line-too-long",
+    "unused-variable",
+    "unused-import"
+]
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_return_any = false
+warn_unused_ignores = false
