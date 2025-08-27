@@ -219,7 +219,8 @@ def main() -> None:
     used_class_instance = UsedClass()
     print(f"Used class attribute: {used_class_instance.get_attribute()}")
     used_class_instance.set_attribute(84)
-    print(f"Updated used class attribute: {used_class_instance.get_attribute()}")
+    print(f"Updated used class attribute: "
+          f"{used_class_instance.get_attribute()}")
 
 
 if __name__ == "__main__":
