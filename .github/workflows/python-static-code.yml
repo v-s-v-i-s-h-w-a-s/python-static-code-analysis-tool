@@ -1,0 +1,215 @@
+name: Python Static Code Analysis
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: ['*']
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch full history for pylint to work with git ls-files
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install static analysis tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort flake8 pylint mypy
+
+      - name: Run Black (code formatting check)
+        id: black
+        run: |
+          echo "## 🖤 Black Code Formatting Check" > analysis-report.md
+          echo "" >> analysis-report.md
+          if black --check . 2>&1 | tee black-output.txt; then
+            echo "✅ **Black**: All files are properly formatted" >> analysis-report.md
+            echo "black_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **Black**: Code formatting issues found" >> analysis-report.md
+            echo "black_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat black-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
+
+      - name: Run isort (import sorting check)
+        id: isort
+        run: |
+          echo "## 📦 isort Import Sorting Check" >> analysis-report.md
+          echo "" >> analysis-report.md
+          if isort --check-only . 2>&1 | tee isort-output.txt; then
+            echo "✅ **isort**: All imports are properly sorted" >> analysis-report.md
+            echo "isort_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **isort**: Import sorting issues found" >> analysis-report.md
+            echo "isort_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat isort-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
+
+      - name: Run flake8 (style and syntax check)
+        id: flake8
+        run: |
+          echo "## 🔍 flake8 Style and Syntax Check" >> analysis-report.md
+          echo "" >> analysis-report.md
+          if flake8 . 2>&1 | tee flake8-output.txt; then
+            echo "✅ **flake8**: No style or syntax issues found" >> analysis-report.md
+            echo "flake8_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **flake8**: Style or syntax issues found" >> analysis-report.md
+            echo "flake8_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat flake8-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
+
+      - name: Run pylint (comprehensive code analysis)
+        id: pylint
+        run: |
+          echo "## 🔎 pylint Comprehensive Code Analysis" >> analysis-report.md
+          echo "" >> analysis-report.md
+          # Get Python files and run pylint
+          python_files=$(git ls-files '*.py')
+          if [ -n "$python_files" ]; then
+            if pylint $python_files 2>&1 | tee pylint-output.txt; then
+              echo "✅ **pylint**: No issues found" >> analysis-report.md
+              echo "pylint_status=✅ PASSED" >> $GITHUB_OUTPUT
+            else
+              echo "❌ **pylint**: Issues found in code analysis" >> analysis-report.md
+              echo "pylint_status=❌ FAILED" >> $GITHUB_OUTPUT
+            fi
+            echo "" >> analysis-report.md
+            echo '```' >> analysis-report.md
+            cat pylint-output.txt >> analysis-report.md
+            echo '```' >> analysis-report.md
+          else
+            echo "ℹ️ **pylint**: No Python files found to analyze" >> analysis-report.md
+            echo "pylint_status=ℹ️ NO FILES" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+        continue-on-error: true
+
+      - name: Run mypy (type checking)
+        id: mypy
+        run: |
+          echo "## 🎯 mypy Type Checking" >> analysis-report.md
+          echo "" >> analysis-report.md
+          if mypy . 2>&1 | tee mypy-output.txt; then
+            echo "✅ **mypy**: No type checking issues found" >> analysis-report.md
+            echo "mypy_status=✅ PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **mypy**: Type checking issues found" >> analysis-report.md
+            echo "mypy_status=❌ FAILED" >> $GITHUB_OUTPUT
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat mypy-output.txt >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
+
+      - name: Generate final report summary
+        id: summary
+        run: |
+          # Prepare the final report with header
+          {
+            echo "## 🧪 Python Static Code Analysis Report"
+            echo ""
+            echo "| Tool | Status |"
+            echo "|------|--------|"
+            echo "| **Black** | ${{ steps.black.outputs.black_status }} |"
+            echo "| **isort** | ${{ steps.isort.outputs.isort_status }} |"
+            echo "| **flake8** | ${{ steps.flake8.outputs.flake8_status }} |"
+            echo "| **pylint** | ${{ steps.pylint.outputs.pylint_status }} |"
+            echo "| **mypy** | ${{ steps.mypy.outputs.mypy_status }} |"
+            echo ""
+          } > final-report.md
+
+          # Add the detailed analysis
+          cat analysis-report.md >> final-report.md
+
+          # Determine overall status
+          if grep -q "❌" final-report.md; then
+            echo "overall_status=❌ Some checks failed" >> $GITHUB_OUTPUT
+            echo "overall_success=false" >> $GITHUB_OUTPUT
+          else
+            echo "overall_status=✅ All checks passed" >> $GITHUB_OUTPUT
+            echo "overall_success=true" >> $GITHUB_OUTPUT
+          fi
+
+          # Add footer
+          echo "" >> final-report.md
+          echo "---" >> final-report.md
+          echo "*Report generated on $(date -u '+%Y-%m-%d %H:%M:%S UTC') by GitHub Actions*" >> final-report.md
+
+      - name: Find existing comment
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "🧪 Python Static Code Analysis Report"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          body-path: final-report.md
+          edit-mode: replace
+          reactions: |
+            ${{ steps.summary.outputs.overall_success == 'true' && '+1' || 'confused' }}
+
+      - name: Upload analysis report as artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-static-analysis-report-${{ github.sha }}
+          path: final-report.md
+          retention-days: 30
+
+      - name: Upload detailed logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-analysis-logs-${{ github.sha }}
+          path: |
+            *-output.txt
+            analysis-report.md
+          retention-days: 7
+
+      - name: Set workflow status
+        run: |
+          if [ "${{ steps.summary.outputs.overall_success }}" = "false" ]; then
+            echo "❌ Static code analysis found issues"
+            exit 1
+          else
+            echo "✅ All static code analysis checks passed"
+          fi
