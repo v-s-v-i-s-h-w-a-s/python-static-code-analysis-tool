@@ -58,7 +58,7 @@ jobs:
           flake8-bugbear \
           flake8-docstrings \
           flake8-import-order \
-          flake8-complexity
+          mccabe
 
     - name: Create reports directory
       run: mkdir -p reports
