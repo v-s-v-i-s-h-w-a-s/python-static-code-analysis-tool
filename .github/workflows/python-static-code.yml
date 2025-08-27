@@ -221,31 +221,151 @@ jobs:
         path: reports/
         retention-days: 30
 
+    # - name: Comment on PR (Success)
+    #   if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '✅ PASSED'
+    #   uses: actions/github-script@v7
+    #   with:
+    #     script: |
+    #       github.rest.issues.createComment({
+    #         issue_number: context.issue.number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: `## 🎉 Static Code Analysis - All Checks Passed!
+            
+    #         All static analysis tools have passed successfully:
+    #         - ✅ Black (Code Formatting)
+    #         - ✅ isort (Import Sorting) 
+    #         - ✅ Flake8 (Style & Complexity)
+    #         - ✅ Pylint (Code Quality)
+    #         - ✅ MyPy (Type Checking)
+    #         - ✅ Bandit (Security)
+    #         - ✅ Safety (Dependencies)
+    #         - ✅ Radon (Complexity Analysis)
+    #         - ✅ Vulture (Dead Code Detection)
+    #         - ✅ pydocstyle (Docstring Conventions)
+            
+    #         Your code is ready to merge! 🚀`
+    #       })
+
+    # - name: Comment on PR (Failure)
+    #   if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '❌ FAILED'
+    #   uses: actions/github-script@v7
+    #   with:
+    #     script: |
+    #       const fs = require('fs');
+          
+    #       let detailedReport = `## ❌ Static Code Analysis Failed
+          
+    #       The following tools reported issues that need to be addressed:
+          
+    #       **Failed Tools:** ${process.env.FAILED_TOOLS}
+          
+    #       ### 📋 Detailed Reports:
+    #       `;
+          
+    #       // Add detailed reports for failed tools
+    #       const reports = [
+    #         { name: 'Black', file: 'black_report.txt', env: 'BLACK_FAILED' },
+    #         { name: 'isort', file: 'isort_report.txt', env: 'ISORT_FAILED' },
+    #         { name: 'Flake8', file: 'flake8_report.txt', env: 'FLAKE8_FAILED' },
+    #         { name: 'Pylint', file: 'pylint_report.txt', env: 'PYLINT_FAILED' },
+    #         { name: 'MyPy', file: 'mypy_report.txt', env: 'MYPY_FAILED' },
+    #         { name: 'Bandit', file: 'bandit_report.txt', env: 'BANDIT_FAILED' },
+    #         { name: 'Safety', file: 'safety_report.txt', env: 'SAFETY_FAILED' }
+    #       ];
+          
+    #       for (const report of reports) {
+    #         if (process.env[report.env] === 'true') {
+    #           try {
+    #             const content = fs.readFileSync(`reports/${report.file}`, 'utf8');
+    #             const truncatedContent = content.length > 2000 ? 
+    #               content.substring(0, 2000) + '\n\n... (truncated, see full report in artifacts)' : 
+    #               content;
+    #             detailedReport += `
+    #       #### ${report.name} Issues:
+    #       \`\`\`
+    #       ${truncatedContent}
+    #       \`\`\`
+    #       `;
+    #           } catch (e) {
+    #             detailedReport += `
+    #       #### ${report.name} Issues:
+    #       \`\`\`
+    #       Report file not found or empty
+    #       \`\`\`
+    #       `;
+    #           }
+    #         }
+    #       }
+          
+    #       detailedReport += `
+          
+    #       ### 🔧 How to Fix:
+          
+    #       1. **Download the full reports** from the Actions artifacts for detailed analysis
+    #       2. **Fix the issues** identified by the failed tools
+    #       3. **Test locally** by running the same tools before pushing
+    #       4. **Commit and push** your fixes
+          
+    #       ### 📥 Quick Local Setup:
+    #       \`\`\`bash
+    #       pip install black isort flake8 pylint mypy bandit safety
+    #       black . && isort . && flake8 . && pylint . && mypy . && bandit -r . && safety check
+    #       \`\`\`
+    #       `;
+          
+    #       github.rest.issues.createComment({
+    #         issue_number: context.issue.number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: detailedReport
+    #       })
     - name: Comment on PR (Success)
       if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '✅ PASSED'
       uses: actions/github-script@v7
       with:
         script: |
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
+          const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `## 🎉 Static Code Analysis - All Checks Passed!
-            
-            All static analysis tools have passed successfully:
-            - ✅ Black (Code Formatting)
-            - ✅ isort (Import Sorting) 
-            - ✅ Flake8 (Style & Complexity)
-            - ✅ Pylint (Code Quality)
-            - ✅ MyPy (Type Checking)
-            - ✅ Bandit (Security)
-            - ✅ Safety (Dependencies)
-            - ✅ Radon (Complexity Analysis)
-            - ✅ Vulture (Dead Code Detection)
-            - ✅ pydocstyle (Docstring Conventions)
-            
-            Your code is ready to merge! 🚀`
-          })
+            issue_number: context.issue.number,
+          });
+
+          const botComment = comments.find(c => 
+            c.user.type === "Bot" && c.body.includes("## 🎉 Static Code Analysis - All Checks Passed!")
+          );
+
+          const body = `## 🎉 Static Code Analysis - All Checks Passed!
+          
+          All static analysis tools have passed successfully:
+          - ✅ Black (Code Formatting)
+          - ✅ isort (Import Sorting) 
+          - ✅ Flake8 (Style & Complexity)
+          - ✅ Pylint (Code Quality)
+          - ✅ MyPy (Type Checking)
+          - ✅ Bandit (Security)
+          - ✅ Safety (Dependencies)
+          - ✅ Radon (Complexity Analysis)
+          - ✅ Vulture (Dead Code Detection)
+          - ✅ pydocstyle (Docstring Conventions)
+          
+          Your code is ready to merge! 🚀`;
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+          }
 
     - name: Comment on PR (Failure)
       if: github.event_name == 'pull_request' && env.OVERALL_STATUS == '❌ FAILED'
@@ -253,7 +373,7 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          
+
           let detailedReport = `## ❌ Static Code Analysis Failed
           
           The following tools reported issues that need to be addressed:
@@ -262,8 +382,7 @@ jobs:
           
           ### 📋 Detailed Reports:
           `;
-          
-          // Add detailed reports for failed tools
+
           const reports = [
             { name: 'Black', file: 'black_report.txt', env: 'BLACK_FAILED' },
             { name: 'isort', file: 'isort_report.txt', env: 'ISORT_FAILED' },
@@ -273,7 +392,7 @@ jobs:
             { name: 'Bandit', file: 'bandit_report.txt', env: 'BANDIT_FAILED' },
             { name: 'Safety', file: 'safety_report.txt', env: 'SAFETY_FAILED' }
           ];
-          
+
           for (const report of reports) {
             if (process.env[report.env] === 'true') {
               try {
@@ -297,7 +416,7 @@ jobs:
               }
             }
           }
-          
+
           detailedReport += `
           
           ### 🔧 How to Fix:
@@ -313,13 +432,32 @@ jobs:
           black . && isort . && flake8 . && pylint . && mypy . && bandit -r . && safety check
           \`\`\`
           `;
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
+
+          const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: detailedReport
-          })
+            issue_number: context.issue.number,
+          });
+
+          const botComment = comments.find(c => 
+            c.user.type === "Bot" && c.body.includes("## ❌ Static Code Analysis Failed")
+          );
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: detailedReport,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: detailedReport,
+            });
+          }
 
     - name: Set PR Status Check
       if: github.event_name == 'pull_request'
