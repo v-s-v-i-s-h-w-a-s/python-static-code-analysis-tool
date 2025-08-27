@@ -1,0 +1,27 @@
+# Requirements for testing static analysis tools
+
+# Safe current versions (comment out and use vulnerable versions below to test Safety)
+requests>=2.31.0
+django>=4.2.0
+urllib3>=2.0.0
+pillow>=10.0.0
+
+# SAFETY TESTING: Uncomment the vulnerable versions below to trigger Safety failures
+# requests==2.6.0      # Known vulnerabilities
+# django==1.8.0        # Known vulnerabilities  
+# urllib3==1.25.0      # Known vulnerabilities
+# pillow==6.2.0        # Known vulnerabilities
+
+# Development dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+pylint>=2.17.0
+mypy>=1.5.0
+bandit>=1.7.5
+safety>=2.3.0
+radon>=5.1.0
+vulture>=2.7
+pydocstyle>=6.3.0
