@@ -212,15 +212,19 @@ def main() -> None:
     docstring_class = ProperDocstringClass(100)
     print(f"Docstring class result: {docstring_class.method_with_docstring()}")
     docstring_class.update_value(200)
-    print(f"Updated docstring class result: "
-          f"{docstring_class.method_with_docstring()}")
+    print(
+        f"Updated docstring class result: "
+        f"{docstring_class.method_with_docstring()}"
+    )
 
     # Use the used class to prevent dead code warnings
     used_class_instance = UsedClass()
     print(f"Used class attribute: {used_class_instance.get_attribute()}")
     used_class_instance.set_attribute(84)
-    print(f"Updated used class attribute: "
-          f"{used_class_instance.get_attribute()}")
+    print(
+        f"Updated used class attribute: "
+        f"{used_class_instance.get_attribute()}"
+    )
 
 
 if __name__ == "__main__":
