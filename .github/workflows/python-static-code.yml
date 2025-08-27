@@ -323,7 +323,7 @@ jobs:
 
     - name: Set PR Status Check
       if: github.event_name == 'pull_request'
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           const status = process.env.OVERALL_STATUS === '✅ PASSED' ? 'success' : 'failure';
