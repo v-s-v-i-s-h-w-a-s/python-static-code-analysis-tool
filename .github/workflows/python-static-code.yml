@@ -214,7 +214,7 @@ jobs:
         echo "**Overall Status: $OVERALL_STATUS**" >> reports/summary.md
 
     - name: Upload Analysis Reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: static-analysis-reports
