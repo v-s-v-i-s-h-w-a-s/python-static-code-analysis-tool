@@ -99,6 +99,7 @@ def secure_function() -> tuple:
     return password_length, data
 
 
+
 def simple_function(*args: int) -> int:
     """A function with lower cyclomatic complexity using *args."""
     positive_values = [value for value in args if value > 0]
@@ -181,7 +182,7 @@ def main() -> None:
     good_class = GoodClass()
     class_result = good_class.good_style_function()
     print(f"Good class result: {class_result}")
-    
+
     sum_result = good_class.calculate_sum([1, 2, 3, 4, 5])
     print(f"Sum result: {sum_result}")
 
@@ -208,12 +209,12 @@ def main() -> None:
     docstring_class = ProperDocstringClass(100)
     print(f"Docstring class result: {docstring_class.method_with_docstring()}")
     docstring_class.update_value(200)
-    print(f"Updated docstring class result: {docstring_class.method_with_docstring()}")
+    print(f"Updated docstring class result: "
+          f"{docstring_class.method_with_docstring()}")
 
     # Use the used class to prevent dead code warnings
     used_class_instance = UsedClass()
     print(f"Used class attribute: {used_class_instance.get_attribute()}")
-
 
 
 if __name__ == "__main__":
