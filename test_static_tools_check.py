@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """
-Unit tests for the static code analysis test file.
+Unit tests for static_tools_check.py
 Ensures test coverage across all functions and classes.
 """
 
-import builtins
 import io
 import sys
-import json
-import pytest
 
-import analysis  # assuming your main file is named analysis.py
+import static_tools_check as analysis  # ✅ FIXED import
 
 
 def capture_output(func, *args, **kwargs):
@@ -32,7 +29,7 @@ def test_properly_formatted_function():
 
 def test_good_class_methods():
     obj = analysis.GoodClass(55)
-    assert obj.good_style_function() in (55, 27)  # depends on condition
+    assert obj.good_style_function() in (55, 27)
     assert obj.calculate_sum([1, 2, 3]) == 6
 
 
