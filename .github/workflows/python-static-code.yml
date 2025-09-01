@@ -31,11 +31,11 @@ jobs:
 
       - name: Initialize summary counters
         run: |
-          echo "TOTAL_CHECKS=0" >> $GITHUB_ENV
-          echo "SUCCESSFUL_CHECKS=0" >> $GITHUB_ENV
-          echo "WARNINGS_COUNT=0" >> $GITHUB_ENV
-          echo "ERRORS_COUNT=0" >> $GITHUB_ENV
-          echo "EXCLUDED_COUNT=0" >> $GITHUB_ENV
+          echo "0" > total_checks.txt
+          echo "0" > successful_checks.txt
+          echo "0" > warnings_count.txt
+          echo "0" > errors_count.txt
+          echo "0" > excluded_count.txt
 
       - name: Run Black (code formatting check)
         id: black
@@ -47,19 +47,22 @@ jobs:
           BLACK_EXIT_CODE=$?
           set -e  # Re-enable exit on error
           
-          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          TOTAL_CHECKS=$(cat total_checks.txt)
+          echo "$((TOTAL_CHECKS + 1))" > total_checks.txt
           
           if [ $BLACK_EXIT_CODE -eq 0 ]; then
             echo "✅ **Black**: All files are properly formatted" >> analysis-report.md
             echo "black_status=✅ Successful" >> $GITHUB_OUTPUT
             echo "black_severity=none" >> $GITHUB_OUTPUT
-            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+            SUCCESSFUL_CHECKS=$(cat successful_checks.txt)
+            echo "$((SUCCESSFUL_CHECKS + 1))" > successful_checks.txt
           else
             # Black formatting issues are considered minor (warnings)
             echo "⚠️ **Black**: Code formatting issues found (minor severity)" >> analysis-report.md
             echo "black_status=⚠️ Warnings" >> $GITHUB_OUTPUT
             echo "black_severity=minor" >> $GITHUB_OUTPUT
-            echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+            WARNINGS_COUNT=$(cat warnings_count.txt)
+            echo "$((WARNINGS_COUNT + 1))" > warnings_count.txt
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -78,19 +81,22 @@ jobs:
           ISORT_EXIT_CODE=$?
           set -e  # Re-enable exit on error
           
-          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          TOTAL_CHECKS=$(cat total_checks.txt)
+          echo "$((TOTAL_CHECKS + 1))" > total_checks.txt
           
           if [ $ISORT_EXIT_CODE -eq 0 ]; then
             echo "✅ **isort**: All imports are properly sorted" >> analysis-report.md
             echo "isort_status=✅ Successful" >> $GITHUB_OUTPUT
             echo "isort_severity=none" >> $GITHUB_OUTPUT
-            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+            SUCCESSFUL_CHECKS=$(cat successful_checks.txt)
+            echo "$((SUCCESSFUL_CHECKS + 1))" > successful_checks.txt
           else
             # Import sorting issues are considered minor (warnings)
             echo "⚠️ **isort**: Import sorting issues found (minor severity)" >> analysis-report.md
             echo "isort_status=⚠️ Warnings" >> $GITHUB_OUTPUT
             echo "isort_severity=minor" >> $GITHUB_OUTPUT
-            echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+            WARNINGS_COUNT=$(cat warnings_count.txt)
+            echo "$((WARNINGS_COUNT + 1))" > warnings_count.txt
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -113,13 +119,15 @@ jobs:
           FLAKE8_EXIT_CODE=$?
           set -e  # Re-enable exit on error
           
-          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          TOTAL_CHECKS=$(cat total_checks.txt)
+          echo "$((TOTAL_CHECKS + 1))" > total_checks.txt
           
           if [ $FLAKE8_EXIT_CODE -eq 0 ]; then
             echo "✅ **flake8**: No style or syntax issues found" >> analysis-report.md
             echo "flake8_status=✅ Successful" >> $GITHUB_OUTPUT
             echo "flake8_severity=none" >> $GITHUB_OUTPUT
-            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+            SUCCESSFUL_CHECKS=$(cat successful_checks.txt)
+            echo "$((SUCCESSFUL_CHECKS + 1))" > successful_checks.txt
           else
             # Check for major issues (E501, F401, E302, E305, E402, etc.)
             MAJOR_ISSUES=$(grep -E "(E501|F401|E302|E305|E402|F403|F405|E999|F821|F822|F823)" flake8-output.txt || echo "")
@@ -127,12 +135,14 @@ jobs:
               echo "❌ **flake8**: Major style/syntax issues found (blocks merge)" >> analysis-report.md
               echo "flake8_status=❌ Errors" >> $GITHUB_OUTPUT
               echo "flake8_severity=major" >> $GITHUB_OUTPUT
-              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+              ERRORS_COUNT=$(cat errors_count.txt)
+              echo "$((ERRORS_COUNT + 1))" > errors_count.txt
             else
               echo "⚠️ **flake8**: Minor style issues found (warnings only)" >> analysis-report.md
               echo "flake8_status=⚠️ Warnings" >> $GITHUB_OUTPUT
               echo "flake8_severity=minor" >> $GITHUB_OUTPUT
-              echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+              WARNINGS_COUNT=$(cat warnings_count.txt)
+              echo "$((WARNINGS_COUNT + 1))" > warnings_count.txt
             fi
           fi
           echo "" >> analysis-report.md
@@ -150,7 +160,8 @@ jobs:
           # Get Python files and run pylint
           python_files=$(find . -name "*.py" -not -path "./.*" -not -path "./venv/*" -not -path "./env/*" -not -path "./__pycache__/*" | head -20)
           if [ -n "$python_files" ]; then
-            echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+            TOTAL_CHECKS=$(cat total_checks.txt)
+            echo "$((TOTAL_CHECKS + 1))" > total_checks.txt
             
             set +e  # Don't exit on error
             # Run pylint with inline configuration
@@ -170,22 +181,26 @@ jobs:
               echo "❌ **pylint**: Critical issues found (Score: ${PYLINT_SCORE}/10) - blocks merge" >> analysis-report.md
               echo "pylint_status=❌ Errors" >> $GITHUB_OUTPUT
               echo "pylint_severity=major" >> $GITHUB_OUTPUT
-              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+              ERRORS_COUNT=$(cat errors_count.txt)
+              echo "$((ERRORS_COUNT + 1))" > errors_count.txt
             elif [ "$(echo "$PYLINT_SCORE < 7.0" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
               echo "❌ **pylint**: Poor code quality score (${PYLINT_SCORE}/10) - blocks merge" >> analysis-report.md
               echo "pylint_status=❌ Errors" >> $GITHUB_OUTPUT
               echo "pylint_severity=major" >> $GITHUB_OUTPUT
-              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+              ERRORS_COUNT=$(cat errors_count.txt)
+              echo "$((ERRORS_COUNT + 1))" > errors_count.txt
             elif [ "$(echo "$PYLINT_SCORE < 8.0" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
               echo "⚠️ **pylint**: Minor issues found (Score: ${PYLINT_SCORE}/10) - warnings" >> analysis-report.md
               echo "pylint_status=⚠️ Warnings" >> $GITHUB_OUTPUT
               echo "pylint_severity=minor" >> $GITHUB_OUTPUT
-              echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+              WARNINGS_COUNT=$(cat warnings_count.txt)
+              echo "$((WARNINGS_COUNT + 1))" > warnings_count.txt
             else
               echo "✅ **pylint**: Excellent code quality (Score: ${PYLINT_SCORE}/10)" >> analysis-report.md
               echo "pylint_status=✅ Successful" >> $GITHUB_OUTPUT
               echo "pylint_severity=none" >> $GITHUB_OUTPUT
-              echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+              SUCCESSFUL_CHECKS=$(cat successful_checks.txt)
+              echo "$((SUCCESSFUL_CHECKS + 1))" > successful_checks.txt
             fi
             echo "" >> analysis-report.md
             echo '```' >> analysis-report.md
@@ -195,7 +210,8 @@ jobs:
             echo "ℹ️ **pylint**: No Python files found to analyze" >> analysis-report.md
             echo "pylint_status=➖ Excluded" >> $GITHUB_OUTPUT
             echo "pylint_severity=none" >> $GITHUB_OUTPUT
-            echo "EXCLUDED_COUNT=$((EXCLUDED_COUNT + 1))" >> $GITHUB_ENV
+            EXCLUDED_COUNT=$(cat excluded_count.txt)
+            echo "$((EXCLUDED_COUNT + 1))" > excluded_count.txt
           fi
           echo "" >> analysis-report.md
         continue-on-error: true
@@ -216,7 +232,8 @@ jobs:
           MYPY_EXIT_CODE=$?
           set -e  # Re-enable exit on error
           
-          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          TOTAL_CHECKS=$(cat total_checks.txt)
+          echo "$((TOTAL_CHECKS + 1))" > total_checks.txt
           
           # Check for major type errors
           CRITICAL_TYPE_ERRORS=$(grep -E "(error: Name .* is not defined|error: Cannot resolve name|error: Module .* has no attribute|error: .* has no attribute)" mypy-output.txt || echo "")
@@ -226,17 +243,20 @@ jobs:
             echo "✅ **mypy**: No type checking issues found" >> analysis-report.md
             echo "mypy_status=✅ Successful" >> $GITHUB_OUTPUT
             echo "mypy_severity=none" >> $GITHUB_OUTPUT
-            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+            SUCCESSFUL_CHECKS=$(cat successful_checks.txt)
+            echo "$((SUCCESSFUL_CHECKS + 1))" > successful_checks.txt
           elif [ -n "$CRITICAL_TYPE_ERRORS" ]; then
             echo "❌ **mypy**: Critical type errors found - blocks merge" >> analysis-report.md
             echo "mypy_status=❌ Errors" >> $GITHUB_OUTPUT
             echo "mypy_severity=major" >> $GITHUB_OUTPUT
-            echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+            ERRORS_COUNT=$(cat errors_count.txt)
+            echo "$((ERRORS_COUNT + 1))" > errors_count.txt
           else
             echo "⚠️ **mypy**: Minor type checking issues found - warnings" >> analysis-report.md
             echo "mypy_status=⚠️ Warnings" >> $GITHUB_OUTPUT
             echo "mypy_severity=minor" >> $GITHUB_OUTPUT
-            echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+            WARNINGS_COUNT=$(cat warnings_count.txt)
+            echo "$((WARNINGS_COUNT + 1))" > warnings_count.txt
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -251,7 +271,8 @@ jobs:
           echo "## 📊 Code Coverage Analysis" >> analysis-report.md
           echo "" >> analysis-report.md
           
-          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          TOTAL_CHECKS=$(cat total_checks.txt)
+          echo "$((TOTAL_CHECKS + 1))" > total_checks.txt
           
           # Look for test files
           TEST_FILES=$(find . -name "*test*.py" -o -name "test_*.py" -not -path "./venv/*" -not -path "./env/*" | head -10)
@@ -279,23 +300,27 @@ jobs:
               echo "✅ **Coverage**: Excellent coverage (${COVERAGE_PERCENT}%) - above 70% threshold" >> analysis-report.md
               echo "coverage_status=✅ Successful" >> $GITHUB_OUTPUT
               echo "coverage_severity=none" >> $GITHUB_OUTPUT
-              echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+              SUCCESSFUL_CHECKS=$(cat successful_checks.txt)
+              echo "$((SUCCESSFUL_CHECKS + 1))" > successful_checks.txt
             elif [ "$COVERAGE_PERCENT" -ge 50 ]; then
               echo "⚠️ **Coverage**: Moderate coverage (${COVERAGE_PERCENT}%) - below 70% threshold but acceptable" >> analysis-report.md
               echo "coverage_status=⚠️ Warnings" >> $GITHUB_OUTPUT
               echo "coverage_severity=minor" >> $GITHUB_OUTPUT
-              echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+              WARNINGS_COUNT=$(cat warnings_count.txt)
+              echo "$((WARNINGS_COUNT + 1))" > warnings_count.txt
             else
               echo "❌ **Coverage**: Poor coverage (${COVERAGE_PERCENT}%) - critically low, blocks merge" >> analysis-report.md
               echo "coverage_status=❌ Errors" >> $GITHUB_OUTPUT
               echo "coverage_severity=major" >> $GITHUB_OUTPUT
-              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+              ERRORS_COUNT=$(cat errors_count.txt)
+              echo "$((ERRORS_COUNT + 1))" > errors_count.txt
             fi
           else
             echo "➖ **Coverage**: No test files found - excluded from analysis" >> analysis-report.md
             echo "coverage_status=➖ Excluded" >> $GITHUB_OUTPUT
             echo "coverage_severity=none" >> $GITHUB_OUTPUT
-            echo "EXCLUDED_COUNT=$((EXCLUDED_COUNT + 1))" >> $GITHUB_ENV
+            EXCLUDED_COUNT=$(cat excluded_count.txt)
+            echo "$((EXCLUDED_COUNT + 1))" > excluded_count.txt
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -307,12 +332,12 @@ jobs:
       - name: Generate final report summary
         id: summary
         run: |
-          # Read environment variables
-          TOTAL=$TOTAL_CHECKS
-          SUCCESSFUL=$SUCCESSFUL_CHECKS  
-          WARNINGS=$WARNINGS_COUNT
-          ERRORS=$ERRORS_COUNT
-          EXCLUDED=$EXCLUDED_COUNT
+          # Read counters from files
+          TOTAL=$(cat total_checks.txt)
+          SUCCESSFUL=$(cat successful_checks.txt)  
+          WARNINGS=$(cat warnings_count.txt)
+          ERRORS=$(cat errors_count.txt)
+          EXCLUDED=$(cat excluded_count.txt)
           
           # Debug output
           echo "Debug - Counters:"
