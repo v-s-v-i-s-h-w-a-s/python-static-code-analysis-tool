@@ -69,6 +69,9 @@ jobs:
           cat black-output.txt >> analysis-report.md
           echo '```' >> analysis-report.md
           echo "" >> analysis-report.md
+          
+          # Debug output for this step
+          echo "Debug - Black completed: status=$(cat $GITHUB_OUTPUT | grep black_status), severity=$(cat $GITHUB_OUTPUT | grep black_severity)"
         continue-on-error: true
 
       - name: Run isort (import sorting check)
@@ -373,6 +376,15 @@ jobs:
           # Add the detailed analysis
           cat analysis-report.md >> final-report.md
 
+          # Debug step outputs
+          echo "Debug - Step severity outputs:"
+          echo "Black severity: '${{ steps.black.outputs.black_severity }}'"
+          echo "isort severity: '${{ steps.isort.outputs.isort_severity }}'"
+          echo "flake8 severity: '${{ steps.flake8.outputs.flake8_severity }}'"
+          echo "pylint severity: '${{ steps.pylint.outputs.pylint_severity }}'"
+          echo "mypy severity: '${{ steps.mypy.outputs.mypy_severity }}'"
+          echo "coverage severity: '${{ steps.coverage.outputs.coverage_severity }}'"
+          
           # Severity-based merge control logic:
           # - Any major severity issue blocks merge
           # - Minor severity issues allow merge with warnings
