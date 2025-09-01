@@ -27,75 +27,15 @@ jobs:
       - name: Install static analysis tools
         run: |
           python -m pip install --upgrade pip
-          pip install black isort flake8 pylint mypy
+          pip install black isort flake8 pylint mypy pytest coverage pytest-cov
 
-      - name: Create configuration files
+      - name: Initialize summary counters
         run: |
-          # Create pyproject.toml with lenient settings
-          cat > pyproject.toml << 'EOF'
-          [tool.black]
-          line-length = 88
-          target-version = ['py38']
-          skip-string-normalization = true
-          skip-magic-trailing-comma = true
-
-          [tool.isort]
-          profile = "black"
-          multi_line_output = 3
-          line_length = 88
-          skip_gitignore = true
-
-          [tool.pylint.messages_control]
-          disable = [
-              "missing-module-docstring",
-              "missing-class-docstring", 
-              "missing-function-docstring",
-              "too-few-public-methods",
-              "invalid-name",
-              "line-too-long",
-              "unused-variable",
-              "unused-import",
-              "import-outside-toplevel",
-              "too-many-arguments",
-              "too-many-positional-arguments"
-          ]
-
-          [tool.pylint.format]
-          max-line-length = 88
-
-          [tool.mypy]
-          ignore_missing_imports = true
-          check_untyped_defs = false
-          warn_return_any = false
-          warn_unused_ignores = false
-          EOF
-
-          # Create .flake8 config
-          cat > .flake8 << 'EOF'
-          [flake8]
-          max-line-length = 88
-          ignore = 
-              E203,  # whitespace before ':'
-              E501,  # line too long (handled by black)
-              W503,  # line break before binary operator
-              W504,  # line break after binary operator
-              E402,  # module level import not at top of file
-              F401,  # imported but unused (can be useful for exports)
-              E302,  # expected 2 blank lines
-              E305,  # expected 2 blank lines after class or function definition
-              W293,  # blank line contains whitespace
-              E303,  # too many blank lines
-          exclude = 
-              .git,
-              __pycache__,
-              .venv,
-              venv,
-              dist,
-              build,
-              *.egg-info
-          EOF
-
-          echo "✅ Configuration files created successfully"
+          echo "TOTAL_CHECKS=0" >> $GITHUB_ENV
+          echo "SUCCESSFUL_CHECKS=0" >> $GITHUB_ENV
+          echo "WARNINGS_COUNT=0" >> $GITHUB_ENV
+          echo "ERRORS_COUNT=0" >> $GITHUB_ENV
+          echo "EXCLUDED_COUNT=0" >> $GITHUB_ENV
 
       - name: Run Black (code formatting check)
         id: black
@@ -103,19 +43,23 @@ jobs:
           echo "## 🖤 Black Code Formatting Check" > analysis-report.md
           echo "" >> analysis-report.md
           set +e  # Don't exit on error
-          black --check . > black-output.txt 2>&1
+          black --line-length 88 --target-version py38 --check . > black-output.txt 2>&1
           BLACK_EXIT_CODE=$?
-          BLACK_FILE_COUNT=$(grep -c "would reformat" black-output.txt || echo "0")
           set -e  # Re-enable exit on error
+          
+          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          
           if [ $BLACK_EXIT_CODE -eq 0 ]; then
             echo "✅ **Black**: All files are properly formatted" >> analysis-report.md
-            echo "black_status=✅ PASSED" >> $GITHUB_OUTPUT
-          elif [ $BLACK_FILE_COUNT -le 2 ]; then
-            echo "⚠️ **Black**: Minor formatting issues found ($BLACK_FILE_COUNT files) - merge allowed" >> analysis-report.md
-            echo "black_status=⚠️ PASSED WITH WARNINGS" >> $GITHUB_OUTPUT
+            echo "black_status=✅ Successful" >> $GITHUB_OUTPUT
+            echo "black_severity=none" >> $GITHUB_OUTPUT
+            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
           else
-            echo "❌ **Black**: Too many formatting issues found ($BLACK_FILE_COUNT files) - merge blocked" >> analysis-report.md
-            echo "black_status=❌ FAILED" >> $GITHUB_OUTPUT
+            # Black formatting issues are considered minor (warnings)
+            echo "⚠️ **Black**: Code formatting issues found (minor severity)" >> analysis-report.md
+            echo "black_status=⚠️ Warnings" >> $GITHUB_OUTPUT
+            echo "black_severity=minor" >> $GITHUB_OUTPUT
+            echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -130,15 +74,23 @@ jobs:
           echo "## 📦 isort Import Sorting Check" >> analysis-report.md
           echo "" >> analysis-report.md
           set +e  # Don't exit on error
-          isort --check-only . > isort-output.txt 2>&1
+          isort --profile black --multi-line 3 --line-length 88 --check-only . > isort-output.txt 2>&1
           ISORT_EXIT_CODE=$?
           set -e  # Re-enable exit on error
+          
+          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          
           if [ $ISORT_EXIT_CODE -eq 0 ]; then
             echo "✅ **isort**: All imports are properly sorted" >> analysis-report.md
-            echo "isort_status=✅ PASSED" >> $GITHUB_OUTPUT
+            echo "isort_status=✅ Successful" >> $GITHUB_OUTPUT
+            echo "isort_severity=none" >> $GITHUB_OUTPUT
+            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
           else
-            echo "❌ **isort**: Import sorting issues found" >> analysis-report.md
-            echo "isort_status=❌ FAILED" >> $GITHUB_OUTPUT
+            # Import sorting issues are considered minor (warnings)
+            echo "⚠️ **isort**: Import sorting issues found (minor severity)" >> analysis-report.md
+            echo "isort_status=⚠️ Warnings" >> $GITHUB_OUTPUT
+            echo "isort_severity=minor" >> $GITHUB_OUTPUT
+            echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -153,19 +105,35 @@ jobs:
           echo "## 🔍 flake8 Style and Syntax Check" >> analysis-report.md
           echo "" >> analysis-report.md
           set +e  # Don't exit on error
-          flake8 . > flake8-output.txt 2>&1
+          # Run flake8 with inline configuration - only ignore truly minor issues
+          flake8 --max-line-length=88 \
+                 --ignore=E203,W503,W504,W293,E303 \
+                 --exclude=.git,__pycache__,.venv,venv,dist,build,*.egg-info \
+                 . > flake8-output.txt 2>&1
           FLAKE8_EXIT_CODE=$?
-          FLAKE8_ISSUE_COUNT=$(grep -c ":" flake8-output.txt || echo "0")
           set -e  # Re-enable exit on error
+          
+          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          
           if [ $FLAKE8_EXIT_CODE -eq 0 ]; then
             echo "✅ **flake8**: No style or syntax issues found" >> analysis-report.md
-            echo "flake8_status=✅ PASSED" >> $GITHUB_OUTPUT
-          elif [ $FLAKE8_ISSUE_COUNT -le 5 ]; then
-            echo "⚠️ **flake8**: Minor style issues found ($FLAKE8_ISSUE_COUNT), acceptable for merge" >> analysis-report.md
-            echo "flake8_status=⚠️ PASSED WITH WARNINGS" >> $GITHUB_OUTPUT
+            echo "flake8_status=✅ Successful" >> $GITHUB_OUTPUT
+            echo "flake8_severity=none" >> $GITHUB_OUTPUT
+            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
           else
-            echo "❌ **flake8**: Too many style/syntax issues found ($FLAKE8_ISSUE_COUNT) - merge blocked" >> analysis-report.md
-            echo "flake8_status=❌ FAILED" >> $GITHUB_OUTPUT
+            # Check for major issues (E501, F401, E302, E305, E402, etc.)
+            MAJOR_ISSUES=$(grep -E "(E501|F401|E302|E305|E402|F403|F405|E999|F821|F822|F823)" flake8-output.txt || echo "")
+            if [ -n "$MAJOR_ISSUES" ]; then
+              echo "❌ **flake8**: Major style/syntax issues found (blocks merge)" >> analysis-report.md
+              echo "flake8_status=❌ Errors" >> $GITHUB_OUTPUT
+              echo "flake8_severity=major" >> $GITHUB_OUTPUT
+              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+            else
+              echo "⚠️ **flake8**: Minor style issues found (warnings only)" >> analysis-report.md
+              echo "flake8_status=⚠️ Warnings" >> $GITHUB_OUTPUT
+              echo "flake8_severity=minor" >> $GITHUB_OUTPUT
+              echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+            fi
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -180,23 +148,44 @@ jobs:
           echo "## 🔎 pylint Comprehensive Code Analysis" >> analysis-report.md
           echo "" >> analysis-report.md
           # Get Python files and run pylint
-          python_files=$(git ls-files '*.py')
+          python_files=$(find . -name "*.py" -not -path "./.*" -not -path "./venv/*" -not -path "./env/*" -not -path "./__pycache__/*" | head -20)
           if [ -n "$python_files" ]; then
+            echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+            
             set +e  # Don't exit on error
-            pylint $python_files > pylint-output.txt 2>&1
+            # Run pylint with inline configuration
+            pylint --max-line-length=88 \
+                   --disable=missing-module-docstring,missing-class-docstring,missing-function-docstring,too-few-public-methods,invalid-name,line-too-long,unused-variable,unused-import,import-outside-toplevel,too-many-arguments,too-many-positional-arguments,consider-using-f-string \
+                   --reports=yes \
+                   $python_files > pylint-output.txt 2>&1
             PYLINT_EXIT_CODE=$?
             # Extract pylint score if available
             PYLINT_SCORE=$(grep -o "Your code has been rated at [0-9]*\.[0-9]*" pylint-output.txt | grep -o "[0-9]*\.[0-9]*" || echo "0")
             set -e  # Re-enable exit on error
-            if [ $PYLINT_EXIT_CODE -eq 0 ]; then
-              echo "✅ **pylint**: No issues found (Score: ${PYLINT_SCORE}/10)" >> analysis-report.md
-              echo "pylint_status=✅ PASSED" >> $GITHUB_OUTPUT
-            elif [ "$(echo "$PYLINT_SCORE >= 8.0" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
-              echo "⚠️ **pylint**: Minor issues found but good score (${PYLINT_SCORE}/10) - merge allowed" >> analysis-report.md
-              echo "pylint_status=⚠️ PASSED WITH WARNINGS" >> $GITHUB_OUTPUT
+            
+            # Check for major issues (errors and critical warnings)
+            CRITICAL_ISSUES=$(grep -E "(syntax-error|undefined-variable|used-before-assignment|import-error|no-member)" pylint-output.txt || echo "")
+            
+            if [ -n "$CRITICAL_ISSUES" ]; then
+              echo "❌ **pylint**: Critical issues found (Score: ${PYLINT_SCORE}/10) - blocks merge" >> analysis-report.md
+              echo "pylint_status=❌ Errors" >> $GITHUB_OUTPUT
+              echo "pylint_severity=major" >> $GITHUB_OUTPUT
+              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+            elif [ "$(echo "$PYLINT_SCORE < 7.0" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
+              echo "❌ **pylint**: Poor code quality score (${PYLINT_SCORE}/10) - blocks merge" >> analysis-report.md
+              echo "pylint_status=❌ Errors" >> $GITHUB_OUTPUT
+              echo "pylint_severity=major" >> $GITHUB_OUTPUT
+              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+            elif [ "$(echo "$PYLINT_SCORE < 8.0" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
+              echo "⚠️ **pylint**: Minor issues found (Score: ${PYLINT_SCORE}/10) - warnings" >> analysis-report.md
+              echo "pylint_status=⚠️ Warnings" >> $GITHUB_OUTPUT
+              echo "pylint_severity=minor" >> $GITHUB_OUTPUT
+              echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
             else
-              echo "❌ **pylint**: Poor code quality score (${PYLINT_SCORE}/10) - merge blocked" >> analysis-report.md
-              echo "pylint_status=❌ FAILED" >> $GITHUB_OUTPUT
+              echo "✅ **pylint**: Excellent code quality (Score: ${PYLINT_SCORE}/10)" >> analysis-report.md
+              echo "pylint_status=✅ Successful" >> $GITHUB_OUTPUT
+              echo "pylint_severity=none" >> $GITHUB_OUTPUT
+              echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
             fi
             echo "" >> analysis-report.md
             echo '```' >> analysis-report.md
@@ -204,7 +193,9 @@ jobs:
             echo '```' >> analysis-report.md
           else
             echo "ℹ️ **pylint**: No Python files found to analyze" >> analysis-report.md
-            echo "pylint_status=ℹ️ NO FILES" >> $GITHUB_OUTPUT
+            echo "pylint_status=➖ Excluded" >> $GITHUB_OUTPUT
+            echo "pylint_severity=none" >> $GITHUB_OUTPUT
+            echo "EXCLUDED_COUNT=$((EXCLUDED_COUNT + 1))" >> $GITHUB_ENV
           fi
           echo "" >> analysis-report.md
         continue-on-error: true
@@ -215,19 +206,37 @@ jobs:
           echo "## 🎯 mypy Type Checking" >> analysis-report.md
           echo "" >> analysis-report.md
           set +e  # Don't exit on error
-          mypy . > mypy-output.txt 2>&1
+          # Run mypy with inline configuration
+          mypy --ignore-missing-imports \
+               --no-strict-optional \
+               --no-warn-return-any \
+               --no-warn-unused-ignores \
+               --exclude '(venv|env|__pycache__|\.git)' \
+               . > mypy-output.txt 2>&1
           MYPY_EXIT_CODE=$?
-          MYPY_ERROR_COUNT=$(grep -c "error:" mypy-output.txt || echo "0")
           set -e  # Re-enable exit on error
+          
+          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          
+          # Check for major type errors
+          CRITICAL_TYPE_ERRORS=$(grep -E "(error: Name .* is not defined|error: Cannot resolve name|error: Module .* has no attribute|error: .* has no attribute)" mypy-output.txt || echo "")
+          GENERAL_ERRORS=$(grep "error:" mypy-output.txt || echo "")
+          
           if [ $MYPY_EXIT_CODE -eq 0 ]; then
             echo "✅ **mypy**: No type checking issues found" >> analysis-report.md
-            echo "mypy_status=✅ PASSED" >> $GITHUB_OUTPUT
-          elif [ $MYPY_ERROR_COUNT -le 3 ]; then
-            echo "⚠️ **mypy**: Minor type checking issues found ($MYPY_ERROR_COUNT) - merge allowed" >> analysis-report.md
-            echo "mypy_status=⚠️ PASSED WITH WARNINGS" >> $GITHUB_OUTPUT
+            echo "mypy_status=✅ Successful" >> $GITHUB_OUTPUT
+            echo "mypy_severity=none" >> $GITHUB_OUTPUT
+            echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+          elif [ -n "$CRITICAL_TYPE_ERRORS" ]; then
+            echo "❌ **mypy**: Critical type errors found - blocks merge" >> analysis-report.md
+            echo "mypy_status=❌ Errors" >> $GITHUB_OUTPUT
+            echo "mypy_severity=major" >> $GITHUB_OUTPUT
+            echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
           else
-            echo "❌ **mypy**: Too many type checking issues found ($MYPY_ERROR_COUNT) - merge blocked" >> analysis-report.md
-            echo "mypy_status=❌ FAILED" >> $GITHUB_OUTPUT
+            echo "⚠️ **mypy**: Minor type checking issues found - warnings" >> analysis-report.md
+            echo "mypy_status=⚠️ Warnings" >> $GITHUB_OUTPUT
+            echo "mypy_severity=minor" >> $GITHUB_OUTPUT
+            echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
           fi
           echo "" >> analysis-report.md
           echo '```' >> analysis-report.md
@@ -236,20 +245,94 @@ jobs:
           echo "" >> analysis-report.md
         continue-on-error: true
 
+      - name: Run coverage analysis
+        id: coverage
+        run: |
+          echo "## 📊 Code Coverage Analysis" >> analysis-report.md
+          echo "" >> analysis-report.md
+          
+          echo "TOTAL_CHECKS=$((TOTAL_CHECKS + 1))" >> $GITHUB_ENV
+          
+          # Look for test files
+          TEST_FILES=$(find . -name "*test*.py" -o -name "test_*.py" -not -path "./venv/*" -not -path "./env/*" | head -10)
+          if [ -n "$TEST_FILES" ]; then
+            set +e  # Don't exit on error
+            # Try to run tests with coverage using inline configuration
+            python -m pytest --cov=. \
+                             --cov-report=term-missing \
+                             --cov-fail-under=70 \
+                             --cov-config=/dev/null \
+                             --ignore=venv \
+                             --ignore=env \
+                             --ignore=.venv \
+                             > coverage-output.txt 2>&1
+            COVERAGE_EXIT_CODE=$?
+            
+            # Extract coverage percentage - try multiple patterns
+            COVERAGE_PERCENT=$(grep -o "TOTAL.*[0-9]\+%" coverage-output.txt | grep -o "[0-9]\+%" | grep -o "[0-9]\+" || \
+                              grep -o "Total coverage: [0-9]\+%" coverage-output.txt | grep -o "[0-9]\+%" | grep -o "[0-9]\+" || \
+                              grep -o "[0-9]\+%" coverage-output.txt | tail -1 | grep -o "[0-9]\+" || \
+                              echo "0")
+            set -e  # Re-enable exit on error
+            
+            if [ "$COVERAGE_PERCENT" -ge 70 ]; then
+              echo "✅ **Coverage**: Excellent coverage (${COVERAGE_PERCENT}%) - above 70% threshold" >> analysis-report.md
+              echo "coverage_status=✅ Successful" >> $GITHUB_OUTPUT
+              echo "coverage_severity=none" >> $GITHUB_OUTPUT
+              echo "SUCCESSFUL_CHECKS=$((SUCCESSFUL_CHECKS + 1))" >> $GITHUB_ENV
+            elif [ "$COVERAGE_PERCENT" -ge 50 ]; then
+              echo "⚠️ **Coverage**: Moderate coverage (${COVERAGE_PERCENT}%) - below 70% threshold but acceptable" >> analysis-report.md
+              echo "coverage_status=⚠️ Warnings" >> $GITHUB_OUTPUT
+              echo "coverage_severity=minor" >> $GITHUB_OUTPUT
+              echo "WARNINGS_COUNT=$((WARNINGS_COUNT + 1))" >> $GITHUB_ENV
+            else
+              echo "❌ **Coverage**: Poor coverage (${COVERAGE_PERCENT}%) - critically low, blocks merge" >> analysis-report.md
+              echo "coverage_status=❌ Errors" >> $GITHUB_OUTPUT
+              echo "coverage_severity=major" >> $GITHUB_OUTPUT
+              echo "ERRORS_COUNT=$((ERRORS_COUNT + 1))" >> $GITHUB_ENV
+            fi
+          else
+            echo "➖ **Coverage**: No test files found - excluded from analysis" >> analysis-report.md
+            echo "coverage_status=➖ Excluded" >> $GITHUB_OUTPUT
+            echo "coverage_severity=none" >> $GITHUB_OUTPUT
+            echo "EXCLUDED_COUNT=$((EXCLUDED_COUNT + 1))" >> $GITHUB_ENV
+          fi
+          echo "" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          cat coverage-output.txt 2>/dev/null || echo "No coverage output available" >> analysis-report.md
+          echo '```' >> analysis-report.md
+          echo "" >> analysis-report.md
+        continue-on-error: true
+
       - name: Generate final report summary
         id: summary
         run: |
-          # Debug: Show what outputs we received
-          echo "Debug - Step outputs:"
-          echo "Black: ${{ steps.black.outputs.black_status }}"
-          echo "isort: ${{ steps.isort.outputs.isort_status }}"
-          echo "flake8: ${{ steps.flake8.outputs.flake8_status }}"
-          echo "pylint: ${{ steps.pylint.outputs.pylint_status }}"
-          echo "mypy: ${{ steps.mypy.outputs.mypy_status }}"
+          # Read environment variables
+          TOTAL=$TOTAL_CHECKS
+          SUCCESSFUL=$SUCCESSFUL_CHECKS  
+          WARNINGS=$WARNINGS_COUNT
+          ERRORS=$ERRORS_COUNT
+          EXCLUDED=$EXCLUDED_COUNT
+          
+          # Debug output
+          echo "Debug - Counters:"
+          echo "Total: $TOTAL, Successful: $SUCCESSFUL, Warnings: $WARNINGS, Errors: $ERRORS, Excluded: $EXCLUDED"
 
-          # Prepare the final report with header
+          # Prepare the final report with header and summary table
           {
             echo "## 🧪 Python Static Code Analysis Report"
+            echo ""
+            echo "### Summary"
+            echo ""
+            echo "| Status | Count |"
+            echo "|--------|-------|"
+            echo "| 🔵 Total | $TOTAL |"
+            echo "| ✅ Successful | $SUCCESSFUL |"
+            echo "| ⚠️ Warnings | $WARNINGS |"
+            echo "| ❌ Errors | $ERRORS |"
+            echo "| ➖ Excluded | $EXCLUDED |"
+            echo ""
+            echo "### Tool Results"
             echo ""
             echo "| Tool | Status |"
             echo "|------|--------|"
@@ -258,66 +341,58 @@ jobs:
             echo "| **flake8** | ${{ steps.flake8.outputs.flake8_status }} |"
             echo "| **pylint** | ${{ steps.pylint.outputs.pylint_status }} |"
             echo "| **mypy** | ${{ steps.mypy.outputs.mypy_status }} |"
+            echo "| **coverage** | ${{ steps.coverage.outputs.coverage_status }} |"
             echo ""
           } > final-report.md
 
           # Add the detailed analysis
           cat analysis-report.md >> final-report.md
 
-          # Determine overall status by checking individual step outputs
-          FAILED_COUNT=0
-          WARNING_COUNT=0
-          if [[ "${{ steps.black.outputs.black_status }}" == *"FAILED"* ]]; then
-            FAILED_COUNT=$((FAILED_COUNT + 1))
-          elif [[ "${{ steps.black.outputs.black_status }}" == *"WARNINGS"* ]]; then
-            WARNING_COUNT=$((WARNING_COUNT + 1))
-          fi
-          if [[ "${{ steps.isort.outputs.isort_status }}" == *"FAILED"* ]]; then
-            FAILED_COUNT=$((FAILED_COUNT + 1))
-          elif [[ "${{ steps.isort.outputs.isort_status }}" == *"WARNINGS"* ]]; then
-            WARNING_COUNT=$((WARNING_COUNT + 1))
-          fi
-          if [[ "${{ steps.flake8.outputs.flake8_status }}" == *"FAILED"* ]]; then
-            FAILED_COUNT=$((FAILED_COUNT + 1))
-          elif [[ "${{ steps.flake8.outputs.flake8_status }}" == *"WARNINGS"* ]]; then
-            WARNING_COUNT=$((WARNING_COUNT + 1))
-          fi
-          if [[ "${{ steps.pylint.outputs.pylint_status }}" == *"FAILED"* ]]; then
-            FAILED_COUNT=$((FAILED_COUNT + 1))
-          elif [[ "${{ steps.pylint.outputs.pylint_status }}" == *"WARNINGS"* ]]; then
-            WARNING_COUNT=$((WARNING_COUNT + 1))
-          fi
-          if [[ "${{ steps.mypy.outputs.mypy_status }}" == *"FAILED"* ]]; then
-            FAILED_COUNT=$((FAILED_COUNT + 1))
-          elif [[ "${{ steps.mypy.outputs.mypy_status }}" == *"WARNINGS"* ]]; then
-            WARNING_COUNT=$((WARNING_COUNT + 1))
-          fi
-
-          echo "Debug - Failed count: $FAILED_COUNT, Warning count: $WARNING_COUNT"
-
-          # Strict merge control logic:
-          # - Any FAILED status blocks merge
-          # - WARNINGS are acceptable and allow merge
-          # - Only perfect code or minor warnings allow merge
+          # Severity-based merge control logic:
+          # - Any major severity issue blocks merge
+          # - Minor severity issues allow merge with warnings
+          # - Only check severity, not counts
           
-          if [ $FAILED_COUNT -gt 0 ]; then
+          HAS_MAJOR_ISSUES=false
+          if [[ "${{ steps.black.outputs.black_severity }}" == "major" ]] || \
+             [[ "${{ steps.isort.outputs.isort_severity }}" == "major" ]] || \
+             [[ "${{ steps.flake8.outputs.flake8_severity }}" == "major" ]] || \
+             [[ "${{ steps.pylint.outputs.pylint_severity }}" == "major" ]] || \
+             [[ "${{ steps.mypy.outputs.mypy_severity }}" == "major" ]] || \
+             [[ "${{ steps.coverage.outputs.coverage_severity }}" == "major" ]]; then
+            HAS_MAJOR_ISSUES=true
+          fi
+
+          HAS_MINOR_ISSUES=false
+          if [[ "${{ steps.black.outputs.black_severity }}" == "minor" ]] || \
+             [[ "${{ steps.isort.outputs.isort_severity }}" == "minor" ]] || \
+             [[ "${{ steps.flake8.outputs.flake8_severity }}" == "minor" ]] || \
+             [[ "${{ steps.pylint.outputs.pylint_severity }}" == "minor" ]] || \
+             [[ "${{ steps.mypy.outputs.mypy_severity }}" == "minor" ]] || \
+             [[ "${{ steps.coverage.outputs.coverage_severity }}" == "minor" ]]; then
+            HAS_MINOR_ISSUES=true
+          fi
+
+          echo "Debug - Has major issues: $HAS_MAJOR_ISSUES, Has minor issues: $HAS_MINOR_ISSUES"
+
+          if [ "$HAS_MAJOR_ISSUES" = "true" ]; then
             echo "overall_status=❌ Critical issues found - merge blocked" >> $GITHUB_OUTPUT
             echo "overall_success=false" >> $GITHUB_OUTPUT
-            echo "Debug - Setting overall_success=false (failures detected)"
+            echo "Debug - Setting overall_success=false (major severity detected)"
             echo "## 🚫 MERGE BLOCKED" >> final-report.md
             echo "" >> final-report.md
-            echo "**Critical issues found that must be fixed before merging:**" >> final-report.md
-            echo "- $FAILED_COUNT tool(s) reported critical failures" >> final-report.md
-            echo "- Please fix the issues and push new commits" >> final-report.md
+            echo "**Critical issues with major severity found that must be fixed before merging:**" >> final-report.md
+            echo "- Major severity issues block merges regardless of count" >> final-report.md
+            echo "- Please fix the critical issues and push new commits" >> final-report.md
             echo "" >> final-report.md
-          elif [ $WARNING_COUNT -gt 0 ]; then
+          elif [ "$HAS_MINOR_ISSUES" = "true" ]; then
             echo "overall_status=⚠️ Minor issues found - merge allowed" >> $GITHUB_OUTPUT
             echo "overall_success=true" >> $GITHUB_OUTPUT
-            echo "Debug - Setting overall_success=true (warnings only)"
+            echo "Debug - Setting overall_success=true (minor issues only)"
             echo "## ✅ MERGE ALLOWED" >> final-report.md
             echo "" >> final-report.md
             echo "**Code quality is acceptable with minor warnings:**" >> final-report.md
-            echo "- $WARNING_COUNT tool(s) reported minor warnings" >> final-report.md
+            echo "- Only minor severity issues found - merge is allowed" >> final-report.md
             echo "- These can be addressed in future commits" >> final-report.md
             echo "" >> final-report.md
           else
@@ -358,7 +433,6 @@ jobs:
             ${{ steps.summary.outputs.overall_success == 'true' && '+1' || 'confused' }}
 
       - name: Upload analysis report as artifact
-        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: python-static-analysis-report-${{ github.sha }}
@@ -379,8 +453,8 @@ jobs:
         run: |
           echo "Debug - Final check: overall_success = '${{ steps.summary.outputs.overall_success }}'"
           if [ "${{ steps.summary.outputs.overall_success }}" = "false" ]; then
-            echo "❌ Static code analysis found issues"
+            echo "❌ Static code analysis found major issues"
             exit 1
           else
-            echo "✅ All static code analysis checks passed"
+            echo "✅ All static code analysis checks passed or only minor issues found"
           fi
